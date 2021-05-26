@@ -16,13 +16,11 @@ import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -50,7 +48,7 @@ public class HotLine {
         final float maxPumpPressure = 90f;
         final Float maxTotalPressure = null;
         final float pumpInitialIntakePressure = 4f;
-        final boolean reverse = false;
+        final boolean reverse = true;
 
         if (maxTotalPressure == null && (minTempC == null || maxTempC == null)) {
             throw new IllegalArgumentException("Must either provide a temperature boundaries or a maximum pumping pressure");
@@ -122,8 +120,9 @@ public class HotLine {
         final int noStations = (int) Math.ceil(totalPressure / maxPumpPressure);
         println("No. of Stations = {}/{} = {} stations", totalPressure, maxPumpPressure, noStations);
         final var pressureTraverse = calculatePressureTraverse(maxPumpPressure, pumpInitialIntakePressure, reverse, totalLength, hotTableRows);
-        println(Arrays.deepToString(pressureTraverse));
-        showTraverse(pressureTraverse);
+        final var temperatureTraverse = calculateTemperatureTraverse(hotTableRows, reverse);
+
+        showTraverse(pressureTraverse, temperatureTraverse, reverse);
 
         println("Simplified Ford:-");
         final float dtLaminar = (float) (3.39f * Math.pow(tinIn * 2.54f, -3.11));
@@ -144,31 +143,74 @@ public class HotLine {
         renderSimplifiedFordHotTable(simplifiedFordRows);
     }
 
-    private static void showTraverse(Point[] pressureTraverse) {
+    private static void showTraverse(Point[] pressureTraverse, Point[] temperatureTraverse, boolean reverse) {
         XYChart.Series series = new XYChart.Series();
         for (var p: pressureTraverse) {
             series.getData().add(new XYChart.Data(p.getX(), p.getY()));
         }
+        XYChart.Series series2 = new XYChart.Series();
+        for (var p: temperatureTraverse) {
+            series2.getData().add(new XYChart.Data(p.getX(), p.getY()));
+        }
         //Defining the x an y axes
-        NumberAxis xAxis = new NumberAxis();
-        NumberAxis yAxis = new NumberAxis();
+        NumberAxis pressureXAxis = new NumberAxis();
+        NumberAxis tempXAxis = new NumberAxis();
+        if (reverse) {
+            final NumberAxis[] axes = {pressureXAxis, tempXAxis};
+            for (var axis: axes) {
+                axis.setTickLabelFormatter(new NumberAxis.DefaultFormatter(axis) {
+                    @Override
+                    public String toString(Number value) {
+                        // note we are printing minus value
+                        return String.format("%7.1f", -value.doubleValue());
+                    }
+                });
+            }
+        }
+        final var first = pressureTraverse[0];
+        final var last = pressureTraverse[pressureTraverse.length - 1];
+        NumberAxis pressureAxis = new NumberAxis();
+        NumberAxis tempAxis = new NumberAxis();
         //Setting labels for the axes
-        xAxis.setLabel("L(m)");
-        yAxis.setLabel("P(psi)");
-        LineChart<Number, Number> linechart = new LineChart<Number, Number>(xAxis, yAxis);
-        linechart.getData().addAll(series);
+        pressureXAxis.setLabel("L(m)");
+        tempAxis.setLabel("T(°C)");
+        pressureAxis.setLabel("P(psi)");
+        LineChart<Number, Number> pressureChart = new LineChart<Number, Number>(pressureXAxis, pressureAxis);
+        pressureChart.getData().addAll(series);
+        LineChart<Number, Number> tempChart = new LineChart<Number, Number>(tempXAxis, tempAxis);
+        tempChart.getData().addAll(series2);
         //Creating a stack pane to hold the chart
-        StackPane pane = new StackPane(linechart);
-        pane.setPadding(new Insets(15, 15, 15, 15));
-        pane.setStyle("-fx-background-color: BEIGE");
+        VBox box = new VBox(tempChart, pressureChart);
+        box.setPadding(new Insets(15, 15, 15, 15));
+        box.setStyle("-fx-background-color: BEIGE");
         //Setting the Scene
-        Scene scene = new Scene(pane, 595, 350);
+        Scene scene = new Scene(box, 595, 650);
         Stage stage = new Stage();
         stage.setTitle("Line Chart");
         stage.setScene(scene);
         stage.show();
     }
 //°
+
+    private static Point[] calculateTemperatureTraverse(List<HotTableRow> hotTableRows, boolean reverse) {
+        final List<Point> pressureTraverse = new ArrayList<>();
+        for (var point: hotTableRows) {
+            final Point startPoint = Point.of(point.getSumL() - point.getL(), reverse ? point.getTf2() : point.getTf1());
+            pressureTraverse.add(startPoint);
+        }
+        final var lastPoint = hotTableRows.get(hotTableRows.size() - 1);
+        final Point startPoint = Point.of(lastPoint.getSumL(), reverse ? lastPoint.getTf1() : lastPoint.getTf2());
+        pressureTraverse.add(startPoint);
+        if (reverse) {
+            for (int i = 0; i < pressureTraverse.size(); i++) {
+                final var oldPoint = pressureTraverse.get(i);
+                pressureTraverse.set(i, Point.of(oldPoint.getX() - lastPoint.getSumL(), oldPoint.getY()));
+            }
+            Collections.reverse(pressureTraverse);
+        }
+        return pressureTraverse.toArray(new Point[0]);
+    }
+
     @NotNull
     private static Point[] calculatePressureTraverse(float maxPumpPressure, float pumpInitialIntakePressure, boolean reverse, float totalLength, List<HotTableRow> hotTableRows) {
         final List<Point> pressureTraverse = new ArrayList<>();
@@ -246,6 +288,12 @@ public class HotLine {
                 }
                 pressureTraverse.addAll(lastItems);
             }
+        } else {
+            for (int i = 0; i < pressureTraverse.size(); i++) {
+                final var oldPoint = pressureTraverse.get(i);
+                pressureTraverse.set(i, Point.of(oldPoint.getX() - totalLength, oldPoint.getY()));
+            }
+            Collections.reverse(pressureTraverse);
         }
         return pressureTraverse.toArray(new Point[0]);
     }
