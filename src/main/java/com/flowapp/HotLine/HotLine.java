@@ -9,7 +9,14 @@ import com.flowapp.HotLine.Models.Point;
 import com.flowapp.HotLine.Utils.Constants;
 import com.flowapp.HotLine.Utils.FileUtils;
 import com.flowapp.HotLine.Utils.StreamUtils;
-import de.vandermeer.asciitable.AsciiTable;
+import com.flowapp.HotLine.Utils.TableList;
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
+import javafx.scene.chart.LineChart;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.XYChart;
+import javafx.scene.layout.StackPane;
+import javafx.stage.Stage;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -18,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class HotLine {
 
@@ -115,6 +123,7 @@ public class HotLine {
         println("No. of Stations = {}/{} = {} stations", totalPressure, maxPumpPressure, noStations);
         final var pressureTraverse = calculatePressureTraverse(maxPumpPressure, pumpInitialIntakePressure, reverse, totalLength, hotTableRows);
         println(Arrays.deepToString(pressureTraverse));
+        showTraverse(pressureTraverse);
 
         println("Simplified Ford:-");
         final float dtLaminar = (float) (3.39f * Math.pow(tinIn * 2.54f, -3.11));
@@ -135,6 +144,31 @@ public class HotLine {
         renderSimplifiedFordHotTable(simplifiedFordRows);
     }
 
+    private static void showTraverse(Point[] pressureTraverse) {
+        XYChart.Series series = new XYChart.Series();
+        for (var p: pressureTraverse) {
+            series.getData().add(new XYChart.Data(p.getX(), p.getY()));
+        }
+        //Defining the x an y axes
+        NumberAxis xAxis = new NumberAxis();
+        NumberAxis yAxis = new NumberAxis();
+        //Setting labels for the axes
+        xAxis.setLabel("L(m)");
+        yAxis.setLabel("P(psi)");
+        LineChart<Number, Number> linechart = new LineChart<Number, Number>(xAxis, yAxis);
+        linechart.getData().addAll(series);
+        //Creating a stack pane to hold the chart
+        StackPane pane = new StackPane(linechart);
+        pane.setPadding(new Insets(15, 15, 15, 15));
+        pane.setStyle("-fx-background-color: BEIGE");
+        //Setting the Scene
+        Scene scene = new Scene(pane, 595, 350);
+        Stage stage = new Stage();
+        stage.setTitle("Line Chart");
+        stage.setScene(scene);
+        stage.show();
+    }
+//°
     @NotNull
     private static Point[] calculatePressureTraverse(float maxPumpPressure, float pumpInitialIntakePressure, boolean reverse, float totalLength, List<HotTableRow> hotTableRows) {
         final List<Point> pressureTraverse = new ArrayList<>();
@@ -391,12 +425,23 @@ public class HotLine {
     private static void renderTable(List<Object[]> args) {
         renderTable(args.toArray(new Object[0][0]));
     }
+
     private static void renderTable(Object[] ... args) {
-        AsciiTable at = new AsciiTable();
-        at.addRule();
-        for (var row: args) {
+        final var temp = args[0];
+        final String[] firstRow = new String[temp.length];
+        for (int i = 0; i < temp.length; i++) {
+            firstRow[i] = temp[i].toString();
+        }
+        TableList at = new TableList(firstRow).sortBy(0).withUnicode(true);
+        final var newRows = Arrays.stream(args).skip(1).map( row -> {
+            final String[] newRow = new String[row.length];
+            for (int i = 0; i < row.length; i++) {
+                newRow[i] = row[i].toString();
+            }
+            return newRow;
+        }).collect(Collectors.toList());
+        for (var row: newRows) {
             at.addRow(row);
-            at.addRule();
         }
         String rend = at.render();
         println(rend);

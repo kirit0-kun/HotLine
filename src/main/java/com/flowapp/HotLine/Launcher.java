@@ -9,12 +9,12 @@ import javafx.stage.Stage;
 public class Launcher extends Application {
 
     public static void main(String[] args) {
-        HotLine.hotLine();
         launch(args);
     }
 
     @Override
     public void start(Stage primaryStage) throws Exception {
+        HotLine.hotLine();
         Button btn = new Button();
         btn.setText("Hello World!");
         btn.setOnAction( e -> {
