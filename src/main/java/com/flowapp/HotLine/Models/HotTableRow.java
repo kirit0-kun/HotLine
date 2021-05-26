@@ -1,5 +1,7 @@
 package com.flowapp.HotLine.Models;
 
+import com.flowapp.HotLine.Utils.Constants;
+
 public class HotTableRow {
 
     private final float tf1;
@@ -8,16 +10,19 @@ public class HotTableRow {
     private final float ti;
     private final float visAtI;
     private final float c;
-    private final float pT;
+    private final Float pT;
+    private final Float alpha;
     private final float l;
     private final float sumL;
     private final float nRe;
     private final float f;
-    private final float hF;
-    private final float deltaP;
-    private final float sumP;
+    private final float k;
+    private final Float hF;
+    private final Float deltaP;
+    private final Float sumP;
+    private final FlowType flowType;
 
-    public HotTableRow(float tf1, float tf2, float tfBar, float ti, float visAtI, float c, float pT, float l, float sumL, float nRe, float f, float hF, float deltaP, float sumP) {
+    public HotTableRow(float tf1, float tf2, float tfBar, float ti, float visAtI, float c, Float pT, Float alpha, float l, float sumL, float nRe, float f, float k, Float hF, Float deltaP, Float sumP) {
         this.tf1 = tf1;
         this.tf2 = tf2;
         this.tfBar = tfBar;
@@ -25,13 +30,22 @@ public class HotTableRow {
         this.visAtI = visAtI;
         this.c = c;
         this.pT = pT;
+        this.alpha = alpha;
         this.l = l;
         this.sumL = sumL;
         this.nRe = nRe;
         this.f = f;
+        this.k = k;
         this.hF = hF;
         this.deltaP = deltaP;
         this.sumP = sumP;
+        if (nRe <= Constants.LaminarFlowMaxNre) {
+            flowType = FlowType.LAMINAR;
+        } else if (nRe < Constants.TurbulentFlowMaxNre) {
+            flowType = FlowType.TRANSITIONAL;
+        } else {
+            flowType = FlowType.TURBULENT;
+        }
     }
 
     public float getTf1() {
@@ -58,8 +72,12 @@ public class HotTableRow {
         return c;
     }
 
-    public float getPt() {
+    public Float getPt() {
         return pT;
+    }
+
+    public Float getAlpha() {
+        return alpha;
     }
 
     public float getL() {
@@ -78,15 +96,23 @@ public class HotTableRow {
         return f;
     }
 
-    public float getHf() {
+    public float getK() {
+        return k;
+    }
+
+    public Float getHf() {
         return hF;
     }
 
-    public float getDeltaP() {
+    public Float getDeltaP() {
         return deltaP;
     }
 
-    public float getSumP() {
+    public Float getSumP() {
         return sumP;
+    }
+
+    public FlowType getFlowType() {
+        return flowType;
     }
 }

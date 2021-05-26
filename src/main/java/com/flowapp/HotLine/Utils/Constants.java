@@ -12,4 +12,7 @@ public class Constants {
     public static final float MmInInch = CmInInch * MmInCMeter;
     public static final float AllowedErrorInDeltaT = 0.5f;
     public static final float ZeroCInKelvin = 273f;
+    public static final int LaminarFlowMaxNre = 2100;
+    public static final int TurbulentFlowMaxNre = 4000;
+
 }

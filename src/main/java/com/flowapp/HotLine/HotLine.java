@@ -1,19 +1,27 @@
 package com.flowapp.HotLine;
 
+import com.flowapp.HotLine.Models.Curves.Curve;
+import com.flowapp.HotLine.Models.Curves.Linear;
+import com.flowapp.HotLine.Models.FlowType;
 import com.flowapp.HotLine.Models.HotTableRow;
+import com.flowapp.HotLine.Models.PhysicalProperties;
+import com.flowapp.HotLine.Models.Point;
 import com.flowapp.HotLine.Utils.Constants;
 import com.flowapp.HotLine.Utils.FileUtils;
+import com.flowapp.HotLine.Utils.StreamUtils;
 import de.vandermeer.asciitable.AsciiTable;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class RefiningProject {
+public class HotLine {
 
-    public static void main(String[] args) {
+    public static void hotLine() {
         FileUtils.clear();
         final Float iDmm = 307f;
         final Float oDmm = 323.6f;
@@ -33,6 +41,7 @@ public class RefiningProject {
         final float tf2 = 72f;
         final float maxPumpPressure = 90f;
         final Float maxTotalPressure = null;
+        final float pumpInitialIntakePressure = 4f;
         final boolean reverse = false;
 
         if (maxTotalPressure == null && (minTempC == null || maxTempC == null)) {
@@ -49,25 +58,24 @@ public class RefiningProject {
         println ("v = 4Q/(π * ID^2) = $ * {} / (π * ({})^2) = {} m/sec", flowRateM3H, iD, velocityMSec);
         println("Tf  = ({} + {}) / 2 = {} C", tf1, tf2, tfBar);
         float deltaT = 1.5f;
-        float k;
+        PhysicalProperties physicalProperties;
         while (true)
         {
             println("Assume ∆T = {} C", deltaT);
-            final float[] result = calculatePhysicalProperties(iD, oD, spGr, velocityMSec, tsC, lambdaS, h, alphaT, visAt100F,
+            physicalProperties = calculatePhysicalProperties(iD, oD, spGr, velocityMSec, tsC, lambdaS, h, alphaT, visAt100F,
                                                             visAt212F, deltaT, lambdaC, dIn, tfBar);
-            final float newTi = result[0];
-            k = result[1];
-            final float newDeltaT = tfBar - newTi;
-            println("then ∆T = {} C", newDeltaT);
+            final float newDeltaT = physicalProperties.getDeltaT();
+            println("then ∆T = {} C", physicalProperties.getDeltaT());
             final float diff = Math.abs(newDeltaT - deltaT);
             if (diff > Constants.AllowedErrorInDeltaT) {
                 println("| assumed ∆T - calculated ∆T | = | {} - {} | = {} C > {} C, so unsuitable", deltaT, newDeltaT, diff, Constants.AllowedErrorInDeltaT);
+                deltaT = newDeltaT;
             } else {
                 println("| assumed ∆T - calculated ∆T | = | {} - {} | = {} C < {} C, so suitable", deltaT, newDeltaT, diff, Constants.AllowedErrorInDeltaT);
                 break;
             }
-            deltaT = newDeltaT;
         }
+        physicalProperties.setDeltaT(deltaT);
         final float sectionDiff = Math.abs(tf1 - tf2);
         Integer noSections = null;
         if (minTempC != null && maxTempC != null) {
@@ -94,9 +102,9 @@ public class RefiningProject {
         final List<HotTableRow> hotTableRows = new ArrayList<>();
         float first = start;
         while (maxTotalPressure == null ? (reverse ? first < end : end < first) : totalPressure < maxTotalPressure) {
-            final float t1 = first;
-            final float t2 = first + delta;
-            final var section = calculateHotTable(t2, t1, alphaT, tsC, spGr, deltaT, flowRateM3H, k, velocityMSec, iD, visAt100F, visAt212F, totalLength, totalPressure);
+            final float t1 = reverse ? (first + delta) : first;
+            final float t2 = reverse ? first : (first + delta);
+            final var section = calculateHotTable(t2, t1, alphaT, tsC, spGr, deltaT, flowRateM3H, physicalProperties.getK(), velocityMSec, iD, visAt100F, visAt212F, totalLength, totalPressure);
             hotTableRows.add(section);
             totalLength += section.getL();
             totalPressure += section.getDeltaP();
@@ -105,6 +113,107 @@ public class RefiningProject {
         renderHotTable(hotTableRows);
         final int noStations = (int) Math.ceil(totalPressure / maxPumpPressure);
         println("No. of Stations = {}/{} = {} stations", totalPressure, maxPumpPressure, noStations);
+        final var pressureTraverse = calculatePressureTraverse(maxPumpPressure, pumpInitialIntakePressure, reverse, totalLength, hotTableRows);
+        println(Arrays.deepToString(pressureTraverse));
+
+        println("Simplified Ford:-");
+        final float dtLaminar = (float) (3.39f * Math.pow(tinIn * 2.54f, -3.11));
+        final float dtTrans = (float) (2.026f * Math.pow(tinIn * 2.59f, -0.52));
+        final float dtTurbulent = (float) (1.08f * Math.pow(tinIn * 2.54f, -0.394));
+        println("For Laminar Flow dt = 3.39 * ({} * 2.54) ^ -3.11 = {} C", tinIn, dtLaminar);
+        println("For Transitional Flow dt = 2.026 * ({} * 2.59) ^ -0.52 = {} C", tinIn, dtTrans);
+        println("For Turbulent Flow dt = 1.08 * ({} * 2.54) ^ -0.394 = {} C", tinIn, dtTurbulent);
+        final Map<FlowType, Float> deltaTMap = Map.of(FlowType.LAMINAR, dtLaminar, FlowType.TRANSITIONAL, dtTrans, FlowType.TURBULENT, dtTurbulent);
+        final List<HotTableRow> simplifiedFordRows = new ArrayList<>();
+        totalLength = 0;
+        for (var section: hotTableRows) {
+            final float dT = deltaTMap.get(section.getFlowType());
+            final var newSection = calculateSimplifiedFordHotTable(section.getTf2(), section.getTf1(), dT, oD, iD, flowRateM3H, spGr, tsC, lambdaC, tinIn, physicalProperties.getAlpha2(), visAt100F, visAt212F, totalLength);
+            totalLength += newSection.getL();
+            simplifiedFordRows.add(newSection);
+        }
+        renderSimplifiedFordHotTable(simplifiedFordRows);
+    }
+
+    @NotNull
+    private static Point[] calculatePressureTraverse(float maxPumpPressure, float pumpInitialIntakePressure, boolean reverse, float totalLength, List<HotTableRow> hotTableRows) {
+        final List<Point> pressureTraverse = new ArrayList<>();
+        float finalPressure = reverse ? pumpInitialIntakePressure : maxPumpPressure;
+        float finalLength = reverse ? totalLength : 0;
+        final int pressureSign = reverse ? 1 : -1;
+        final int lengthSign = reverse ? -1 : 1;
+        Point lastPoint = Point.of(finalLength, finalPressure);
+        pressureTraverse.add(lastPoint);
+        for (int i = 0; i < hotTableRows.size(); i++) {
+            float lastLength = finalLength;
+            float lastPressure = finalPressure;
+            final var section = hotTableRows.get(i);
+            finalPressure += pressureSign * section.getDeltaP();
+            finalLength += lengthSign * section.getL();
+            Point newPoint = Point.of(finalLength, finalPressure);
+            while (finalPressure > maxPumpPressure) {
+                finalPressure = finalPressure - maxPumpPressure + pumpInitialIntakePressure;
+                final float middlePressure = maxPumpPressure;
+                lastPoint = Point.of(lastLength, lastPressure);
+                final Curve line = new Linear(lastPoint, newPoint);
+                final float middleLength = line.getX(middlePressure);
+                lastLength = middleLength;
+                lastPressure = middlePressure;
+                lastPoint = Point.of(lastLength, lastPressure);
+                pressureTraverse.add(lastPoint);
+                newPoint = Point.of(middleLength, pumpInitialIntakePressure);
+                pressureTraverse.add(newPoint);
+            }
+            while (finalPressure < pumpInitialIntakePressure) {
+                finalPressure = finalPressure + maxPumpPressure - pumpInitialIntakePressure;
+                final float middlePressure = pumpInitialIntakePressure;
+                lastPoint = Point.of(lastLength, lastPressure);
+                final Curve line = new Linear(lastPoint, newPoint);
+                final float middleLength = line.getX(middlePressure);
+                lastLength = middleLength;
+                lastPressure = middlePressure;
+                lastPoint = Point.of(lastLength, lastPressure);
+                pressureTraverse.add(lastPoint);
+                newPoint = Point.of(middleLength, maxPumpPressure);
+                pressureTraverse.add(newPoint);
+            }
+            newPoint = Point.of(finalLength, finalPressure);
+            pressureTraverse.add(newPoint);
+        }
+        if (!reverse) {
+            final Point last = StreamUtils.reverse(pressureTraverse.stream())
+                    .filter( item -> item.getY() == maxPumpPressure)
+                    .findFirst().orElse(null);
+            if (last != null) {
+                final int startIndex = pressureTraverse.lastIndexOf(last);
+                final var lastItems = new ArrayList<>(pressureTraverse.subList(startIndex, pressureTraverse.size()));
+                pressureTraverse.removeAll(lastItems);
+                Point lastOldPoint = null;
+                float lastPressure = pumpInitialIntakePressure;
+                for (int i = lastItems.size() -1; i >= 0; i--) {
+                    if (lastOldPoint == null) {
+                        lastOldPoint = lastItems.get(i);
+                        continue;
+                    }
+                    final Point newPoint = lastItems.get(i);
+                    final var slope = new Linear(newPoint, lastOldPoint).getSlope();
+                    final var newLastPoint = Point.of(lastOldPoint.getX(), lastPressure);
+                    final var newLastLine = new Linear(slope, newLastPoint);
+                    final var newLastPumpPressure = newLastLine.getY(newPoint.getX());
+                    final var newLastPoint2 = Point.of(newPoint.getX(), newLastPumpPressure);
+                    lastPressure = newLastPoint2.getY();
+                    final int lastIndex = lastItems.indexOf(lastOldPoint);
+                    lastItems.set(lastIndex, newLastPoint);
+                    lastOldPoint = newPoint;
+                }
+                if (lastOldPoint != null) {
+                    final int lastIndex = lastItems.indexOf(lastOldPoint);
+                    lastItems.set(lastIndex, Point.of(lastOldPoint.getX(), lastPressure));
+                }
+                pressureTraverse.addAll(lastItems);
+            }
+        }
+        return pressureTraverse.toArray(new Point[0]);
     }
 
     private static void renderHotTable(List<HotTableRow> hotTableRows) {
@@ -117,6 +226,61 @@ public class RefiningProject {
                     section.getF(), section.getHf(), section.getDeltaP(), section.getSumP()});
         }
         renderTable(table);
+    }
+
+    private static void renderSimplifiedFordHotTable(List<HotTableRow> hotTableRows) {
+        final List<Object[]> table = new ArrayList<>();
+        table.add(new Object[]{"No.", "Tf1", "Tf2", "Tf", "Ti", "ζi", "Nre", "Flow Type", "C", "F", "α", "k", "L", "ΣL"});
+        for (int i = 0; i < hotTableRows.size(); i++) {
+            final var section = hotTableRows.get(i);
+            table.add(new Object[]{i+1, section.getTf1(), section.getTf2(), section.getTfBar(), section.getTi(), section.getVisAtI(),
+                    section.getNre(), section.getFlowType(), section.getC(), section.getF(), section.getAlpha(),
+                    section.getK(), section.getL(), section.getSumL()});
+        }
+        renderTable(table);
+    }
+
+    @NotNull
+    private static HotTableRow calculateSimplifiedFordHotTable(float tf2,
+                                                               float tf1,
+                                                               float deltaT,
+                                                               float oD,
+                                                               float iD,
+                                                               float flowRateM3H,
+                                                               float spGr,
+                                                               float tsC,
+                                                               float lambdaC,
+                                                               float tin,
+                                                               float alpha2,
+                                                               float visAt100F,
+                                                               float visAt212F,
+                                                               float totalLength) {
+
+
+
+        final float tfBar = (tf2 + tf1)/2; // tf
+        final float j = (float) ((Math.log10(Math.log10(visAt100F)) - Math.log10(Math.log10(visAt212F))) / 62);
+        final float w = (float) (Math.log10(Math.log10(visAt100F)) + 36 * j);
+        final float tI = tfBar - deltaT;
+        final float visAtI = (float) Math.pow(10, Math.pow(10, w-j*tI));
+        final float nRe = flowRateM3H / (2827.44f * iD * visAtI * 1e-6f);
+        final float f;
+        final float alpha1;
+        if (nRe <= Constants.LaminarFlowMaxNre) {
+            f = 64 / nRe;
+            alpha1 = (float) Math.pow(f / 139.7f, -0.3772f);
+        } else if (nRe < Constants.TurbulentFlowMaxNre) {
+            f = (float) (0.5f / Math.pow(nRe, 0.3f));
+            alpha1 = (float) Math.pow(f / 0.0655f, -9.09f);
+        } else {
+            f = (float) (0.316 / Math.pow(nRe, 0.25));
+            alpha1 = (float) Math.pow(f / 0.5604f, -16.835);
+        }
+        final float k = (float) (Math.PI / (1 / (alpha1 * iD) + Math.log((oD + 0.0508f * tin)/oD) * (0.5f/lambdaC) + 1 / (alpha2 * (oD + 0.0508f * tin))));
+        final float c = (float) (762.5f+3.38f*(tI+Constants.ZeroCInKelvin)/Math.sqrt(spGr));
+        final float l = (float) (- Math.log((tf2-tsC) / (tf1 - tsC)) * (flowRateM3H * spGr * c) / (3600 * k));
+        final float y = totalLength + l;
+        return new HotTableRow(tf1, tf2, tfBar, tI, visAtI, c, null, alpha1, l, y, nRe, f, k, null, null, null);
     }
 
     @NotNull
@@ -141,14 +305,14 @@ public class RefiningProject {
         final float tI = tfBar - deltaT;
         final float visAtI = (float) Math.pow(10, Math.pow(10, g - j * tI));
         final float pT = 1000 * spGr - alphaT * (tI - 20);
-        final float c = (float) ((762.3 + 3.38 * (tI+Constants.ZeroCInKelvin)) / Math.sqrt(spGr));
+        final float c = (float) ((762.5f + 3.38f * (tI+Constants.ZeroCInKelvin)) / Math.sqrt(spGr));
         final float length = (float) (- flowRateM3H * spGr * c * Math.log((tf2 - tsC) / (tf1 - tsC)) / (3600 * k));
         final float sumLength = totalLength + length;
         final float nRe = velocityMSec * iD * 1e+6f / visAtI;
         final float f;
-        if (nRe <= 2100) {
+        if (nRe <= Constants.LaminarFlowMaxNre) {
             f = 64 / nRe;
-        } else if (nRe < 4000) {
+        } else if (nRe < Constants.TurbulentFlowMaxNre) {
             f = (float) (0.5 / Math.pow(nRe, 0.3));
         } else {
             f = (float) (0.316 / Math.pow(nRe, 0.25));
@@ -156,10 +320,10 @@ public class RefiningProject {
         final float h = (float) (1000 * f * length * Math.pow(velocityMSec, 2) / (19.6f * iD));
         final float p = h * pT / 10000;
         final float sumPressure = totalPressure + p;
-        return new HotTableRow(tf1, tf2, tfBar, tI, visAtI, c, pT, length, sumLength, nRe, f, h, p, sumPressure);
+        return new HotTableRow(tf1, tf2, tfBar, tI, visAtI, c, pT, null, length, sumLength, nRe, f, k, h, p, sumPressure);
     }
 
-    private static float[] calculatePhysicalProperties(float iD,
+    private static PhysicalProperties calculatePhysicalProperties(float iD,
                                                      float oD,
                                                      float spGr,
                                                      float v,
@@ -184,8 +348,8 @@ public class RefiningProject {
         final float mi = (float) Math.pow( 10, Math.pow(10.0, (a - b * ti)));
         println ("kin.v i = {}", mi);
 
-        final float mlam = (v * iD * 1e+6f) / 2100;
-        final float mtur = (v * iD * 1e+6f) / 4000;
+        final float mlam = (v * iD * 1e+6f) / Constants.LaminarFlowMaxNre;
+        final float mtur = (v * iD * 1e+6f) / Constants.TurbulentFlowMaxNre;
         println ("kin.v lam = {}", mlam);
         println ("kin.v tur = {}", mtur);
         final float nre = (v * iD) / (mi * 1e-6f);
@@ -201,13 +365,13 @@ public class RefiningProject {
         final float nGrPr = (float) ((Math.pow(iD, 3) * c * pt * bt * 9.8 * (tfBar - ti)) / (mi * 1e-6f * pf));
         println ("NGR,PR = {}", (int) nGrPr);
         final float nu;
-        if (nre <= 2100) {
+        if (nre <= Constants.LaminarFlowMaxNre) {
             if (nGrPr >50000) {
                 nu = (float) (0.184 * Math.pow(nGrPr,0.32));
             } else {
                 nu = 3.8f;
             }
-        } else if (nre < 4000) {
+        } else if (nre < Constants.TurbulentFlowMaxNre) {
             nu = (float) (0.027 * Math.pow(nre,0.8) * Math.pow(c * pt * (mi * 1e-6f) / pf, 1 / 3.0) * (1 - (6e+5 / Math.pow(nre,1.8))));
         } else {
             nu = (float) (0.027 * Math.pow(nre, 0.8) * Math.pow(c * pt * mi * 1e-6f / pf,1 / 3.0));
@@ -221,7 +385,7 @@ public class RefiningProject {
         println("K = {}",k);
         ti = (float) (tfBar - (k * (tfBar - tsC) / (Math.PI * alpha1 * iD)));
         println("Ti(calc) = {} C", ti);
-        return new float[]{ti, k};
+        return new PhysicalProperties(c, bt, pf, pt, nu, alpha1, alpha2, k, tfBar-ti);
     }
 
     private static void renderTable(List<Object[]> args) {
