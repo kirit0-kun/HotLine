@@ -19,6 +19,7 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -184,8 +185,8 @@ public class HotLine {
         final List<XYChart.Series<Number, Number>> allSeries = List.of(series, series2);
         for (var item: allSeries) {
             for (XYChart.Data<Number, Number> entry : item.getData()) {
-                System.out.println("Entered!");
                 Tooltip t = new Tooltip("(" + String.format("%.2f", Math.abs((float) entry.getXValue())) + " , " + entry.getYValue().toString() + ")");
+                t.setShowDelay(new Duration(50));
                 Tooltip.install(entry.getNode(), t);
             }
         }
