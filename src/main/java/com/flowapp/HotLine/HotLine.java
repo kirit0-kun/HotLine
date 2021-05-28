@@ -56,7 +56,7 @@ public class HotLine {
         println("din = OD + 2 tin = {} + 2 * {} * {} = {} m", oD, tinIn, Constants.MmInInch / Constants.MmInMeter, dIn);
         final float tfBar = (tf1 + tf2) / 2;
         final float velocityMSec = (float) (4 * flowRateM3H / (3.14 * 3600 * Math.pow(iD, 2)));
-        println ("v = 4Q/(π * ID^2) = $ * {} / (π * ({})^2) = {} m/sec", flowRateM3H, iD, velocityMSec);
+        println ("v = 4Q/(π * ID^2) = 4 * {} / (π * ({})^2) = {} m/sec", flowRateM3H, iD, velocityMSec);
         println("Tf  = ({} + {}) / 2 = {} C", tf1, tf2, tfBar);
         float deltaT = 1.5f;
         PhysicalProperties physicalProperties;
@@ -143,17 +143,17 @@ public class HotLine {
     private Point[] calculateTemperatureTraverse(List<HotTableRow> hotTableRows, boolean reverse) {
         final List<Point> pressureTraverse = new ArrayList<>();
         for (var point: hotTableRows) {
-            final Point startPoint = Point.of(point.getSumL() - point.getL(), reverse ? point.getTf2() : point.getTf1());
+            final Point startPoint = Point.of((point.getSumL() - point.getL()) * (reverse ? -1 : 1), reverse ? point.getTf2() : point.getTf1());
             pressureTraverse.add(startPoint);
         }
         final var lastPoint = hotTableRows.get(hotTableRows.size() - 1);
-        final Point startPoint = Point.of(lastPoint.getSumL(), reverse ? lastPoint.getTf1() : lastPoint.getTf2());
+        final Point startPoint = Point.of(lastPoint.getSumL() * (reverse ? -1 : 1), reverse ? lastPoint.getTf1() : lastPoint.getTf2());
         pressureTraverse.add(startPoint);
         if (reverse) {
-            for (int i = 0; i < pressureTraverse.size(); i++) {
-                final var oldPoint = pressureTraverse.get(i);
-                pressureTraverse.set(i, Point.of(oldPoint.getX() - lastPoint.getSumL(), oldPoint.getY()));
-            }
+//            for (int i = 0; i < pressureTraverse.size(); i++) {
+//                final var oldPoint = pressureTraverse.get(i);
+//                pressureTraverse.set(i, Point.of(oldPoint.getX() - lastPoint.getSumL(), oldPoint.getY()));
+//            }
             Collections.reverse(pressureTraverse);
         }
         return pressureTraverse.toArray(new Point[0]);

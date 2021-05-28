@@ -1,6 +1,5 @@
 plugins {
     id 'java'
-    id 'org.jetbrains.kotlin.jvm' version '1.5.10'
     id 'org.openjfx.javafxplugin' version '0.0.10'
     id 'org.beryx.jlink' version '2.24.0'
 }
@@ -9,14 +8,19 @@ group 'com.flowapp'
 version '1.0-SNAPSHOT'
 mainClassName = "com.flowapp.HotLine.Launcher"
 
-application.mainModule = 'com.flowapp.HotLine'
+startScripts {
+    classpath += files("$buildDir/resources/main")
+}
+
+application {
+    mainModule = 'com.flowapp.HotLine'
+}
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib"
     implementation 'org.jetbrains:annotations:20.1.0'
     implementation 'org.jetbrains:annotations:20.1.0'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
@@ -29,7 +33,7 @@ test {
 
 javafx {
     version = '15'
-    modules = ['javafx.controls', 'javafx.graphics', 'javafx.fxml', 'javafx.base']
+    //modules = ['javafx.controls', 'javafx.graphics', 'javafx.fxml', 'javafx.base']
 }
 
 jlink {
@@ -48,5 +52,13 @@ jar {
                 'Class-Path': configurations.compile.collect { it.getName() }.join(' '),
                 'Main-Class': 'com.flowapp.HotLine.Launcher'
         )
+    }
+}
+
+apply plugin: 'idea'
+
+idea {
+    module {
+        inheritOutputDirs = true
     }
 }

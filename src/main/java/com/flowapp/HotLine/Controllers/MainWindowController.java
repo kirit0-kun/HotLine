@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.ResourceBundle;
 
 public class MainWindowController implements Initializable {
-    
+
     @FXML
     private TextField iDTextField;
 
@@ -93,16 +93,14 @@ public class MainWindowController implements Initializable {
     @FXML
     private Button calculateBtn;
 
+    private Stage chartsWindow;
+
+    Stage getStage() {
+        return (Stage) iDTextField.getScene().getWindow();
+    }
+
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        DecimalFormat format = new DecimalFormat( "#.0" );
-        final var decimalFormatter = new TextFormatter<>(c -> {
-            if (c.getControlNewText().isEmpty() ) { return c; }
-            ParsePosition parsePosition = new ParsePosition(0);
-            Object object = format.parse(c.getControlNewText(), parsePosition);
-            if (object == null || parsePosition.getIndex() < c.getControlNewText().length()) { return null; }
-            else { return c; }
-        });
         final TextField[] textFields = {
             iDTextField,oDTextField,spGrTextField,vis100TextField,
                 vis212TextField,flowRateTextField,maxTempTextField,
@@ -112,9 +110,28 @@ public class MainWindowController implements Initializable {
                 pumpInitialPressureTextField
         };
         for (var field: textFields) {
-            field.setTextFormatter(decimalFormatter);
+            field.setTextFormatter(createDecimalFormatter());
         }
-        calculateBtn.setOnAction(e -> calculate());
+        calculateBtn.setOnAction(e -> {
+            try {
+                calculate();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                final var errorDialog = createErrorDialog(getStage(), ex);
+                errorDialog.show();
+            }
+        });
+    }
+
+    TextFormatter createDecimalFormatter() {
+        DecimalFormat format = new DecimalFormat( "#.0" );
+        return new TextFormatter<>(c -> {
+            if (c.getControlNewText().isEmpty() ) { return c; }
+            ParsePosition parsePosition = new ParsePosition(0);
+            Object object = format.parse(c.getControlNewText(), parsePosition);
+            if (object == null || parsePosition.getIndex() < c.getControlNewText().length()) { return null; }
+            else { return c; }
+        });
     }
 
     void calculate() {
@@ -135,54 +152,77 @@ public class MainWindowController implements Initializable {
         final float tf1 = getFloat(tf1TextField.getText());
         final float tf2 = getFloat(tf2TextField.getText());
         final float maxPumpPressure = getFloat(maxPumpPressureTextField.getText());
-        final Float maxTotalPressure = getInteger(noPumpsTextField.getText()) * maxPumpPressure;
+        final Integer pumpsNum = getInteger(noPumpsTextField.getText());
+        final Float maxTotalPressure = pumpsNum == null ? null : pumpsNum * maxPumpPressure;
         final float pumpInitialIntakePressure = getFloat(pumpInitialPressureTextField.getText());
         final boolean reverse = isReverseCheckBox.isSelected();
 
-        final Service<HotLineResult> calculationService = new Service<>() {
-            @Override
-            protected Task<HotLineResult> createTask() {
-                return new Task<HotLineResult>() {
-                    @Override
-                    protected HotLineResult call() throws Exception {
-                        final var hotline = new HotLine();
-                        return hotline.hotLine(
-                                iDmm,
-                                oDmm,
-                                spGr,
-                                visAt100F,
-                                visAt212F,
-                                flowRateM3H,
-                                maxTempC,
-                                minTempC,
-                                tsC,
-                                lambdaS,
-                                tinIn,
-                                h,
-                                lambdaC,
-                                alphaT,
-                                tf1,
-                                tf2,
-                                maxPumpPressure,
-                                maxTotalPressure,
-                                pumpInitialIntakePressure,
-                                reverse);
-                    }
+        final var task = new Task<HotLineResult>() {
+            Alert loadingDialog;
 
-                    @Override
-                    public void run() {
-                        final var loadingDialog = createProgressAlert((Stage) iDTextField.getScene().getWindow(), this);
-                        super.run();
-                        loadingDialog.show();
-                    }
-                };
+            @Override
+            protected HotLineResult call() throws Exception {
+                final var hotline = new HotLine();
+                return hotline.hotLine(
+                        iDmm,
+                        oDmm,
+                        spGr,
+                        visAt100F,
+                        visAt212F,
+                        flowRateM3H,
+                        maxTempC,
+                        minTempC,
+                        tsC,
+                        lambdaS,
+                        tinIn,
+                        h,
+                        lambdaC,
+                        alphaT,
+                        tf1,
+                        tf2,
+                        maxPumpPressure,
+                        maxTotalPressure,
+                        pumpInitialIntakePressure,
+                        reverse);
+            }
+
+            @Override
+            public void run() {
+                loadingDialog = createProgressAlert((Stage) iDTextField.getScene().getWindow(), this);
+                super.run();
+                loadingDialog.show();
+            }
+
+            protected void closeDialog() {
+                if (loadingDialog != null) {
+                    loadingDialog.close();
+                }
+            }
+
+            @Override
+            protected void succeeded() {
+                super.succeeded();
+                closeDialog();
+            }
+
+            @Override
+            protected void failed() {
+                super.failed();
+                closeDialog();
+            }
+
+            @Override
+            protected void cancelled() {
+                super.cancelled();
+                closeDialog();
             }
         };
-        calculationService.setOnSucceeded(e -> {
-            final var result = calculationService.getValue();
+        task.setOnSucceeded(e -> {
+            final var result = task.getValue();
             showTraverse(result.getPressureTraverse(), result.getTemperatureTraverse(), reverse);
             setAnswer(result.getSteps());
         });
+        task.run();
     }
 
     Float getFloat(String value) {
@@ -203,6 +243,14 @@ public class MainWindowController implements Initializable {
 
     void setAnswer(String answer) {
         answerArea.setText(answer);
+    }
+
+    Alert createErrorDialog(Stage owner, Exception e) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.initOwner(owner);
+        alert.setTitle("Error");
+        alert.setContentText(e.getMessage());
+        return alert;
     }
 
     Alert createProgressAlert(Stage owner, Task<?> task) {
@@ -228,13 +276,15 @@ public class MainWindowController implements Initializable {
     }
 
     private void showTraverse(Point[] pressureTraverse, Point[] temperatureTraverse, boolean reverse) {
-        XYChart.Series<Number, Number> series = new XYChart.Series();
+        XYChart.Series<Number, Number> pressureSeries = new XYChart.Series();
+        pressureSeries.setName("Pressure Plot");
         for (var p: pressureTraverse) {
-            series.getData().add(new XYChart.Data(p.getX(), p.getY()));
+            pressureSeries.getData().add(new XYChart.Data(p.getX(), p.getY()));
         }
-        XYChart.Series<Number, Number> series2 = new XYChart.Series();
+        XYChart.Series<Number, Number> tempSeries = new XYChart.Series();
+        tempSeries.setName("Temp Plot");
         for (var p: temperatureTraverse) {
-            series2.getData().add(new XYChart.Data(p.getX(), p.getY()));
+            tempSeries.getData().add(new XYChart.Data(p.getX(), p.getY()));
         }
         //Defining the x an y axes
         NumberAxis pressureXAxis = new NumberAxis();
@@ -261,10 +311,10 @@ public class MainWindowController implements Initializable {
         tempAxis.setLabel("T(°C)");
         pressureAxis.setLabel("P(psi)");
         LineChart<Number, Number> pressureChart = new LineChart<Number, Number>(pressureXAxis, pressureAxis);
-        pressureChart.getData().addAll(series);
+        pressureChart.getData().addAll(pressureSeries);
         LineChart<Number, Number> tempChart = new LineChart<Number, Number>(tempXAxis, tempAxis);
-        tempChart.getData().addAll(series2);
-        final List<XYChart.Series<Number, Number>> allSeries = List.of(series, series2);
+        tempChart.getData().addAll(tempSeries);
+        final List<XYChart.Series<Number, Number>> allSeries = List.of(pressureSeries, tempSeries);
         for (var item: allSeries) {
             for (XYChart.Data<Number, Number> entry : item.getData()) {
                 Tooltip t = new Tooltip("(" + String.format("%.2f", Math.abs((float) entry.getXValue())) + " , " + entry.getYValue().toString() + ")");
@@ -278,9 +328,18 @@ public class MainWindowController implements Initializable {
         box.setStyle("-fx-background-color: BEIGE");
         //Setting the Scene
         Scene scene = new Scene(box, 595, 650);
-        Stage stage = new Stage();
-        stage.setTitle("Line Chart");
-        stage.setScene(scene);
-        stage.show();
+        var x = getStage().getX() + 200;
+        var y = getStage().getY();
+        if (chartsWindow != null) {
+            x = chartsWindow.getX();
+            y = chartsWindow.getY();
+            chartsWindow.close();
+        }
+        chartsWindow = new Stage();
+        chartsWindow.setX(x);
+        chartsWindow.setY(y);
+        chartsWindow.setTitle("Line Chart");
+        chartsWindow.setScene(scene);
+        chartsWindow.show();
     }
 }
