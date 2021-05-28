@@ -1,25 +1,12 @@
 package com.flowapp.HotLine;
 
+import com.flowapp.HotLine.Models.*;
 import com.flowapp.HotLine.Models.Curves.Curve;
 import com.flowapp.HotLine.Models.Curves.Linear;
-import com.flowapp.HotLine.Models.FlowType;
-import com.flowapp.HotLine.Models.HotTableRow;
-import com.flowapp.HotLine.Models.PhysicalProperties;
-import com.flowapp.HotLine.Models.Point;
 import com.flowapp.HotLine.Utils.Constants;
 import com.flowapp.HotLine.Utils.FileUtils;
 import com.flowapp.HotLine.Utils.StreamUtils;
 import com.flowapp.HotLine.Utils.TableList;
-import javafx.geometry.Insets;
-import javafx.scene.Scene;
-import javafx.scene.chart.LineChart;
-import javafx.scene.chart.NumberAxis;
-import javafx.scene.chart.XYChart;
-import javafx.scene.control.Tooltip;
-import javafx.scene.layout.StackPane;
-import javafx.scene.layout.VBox;
-import javafx.stage.Stage;
-import javafx.util.Duration;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -29,32 +16,38 @@ import java.util.stream.Collectors;
 
 public class HotLine {
 
-    public static void hotLine() {
-        FileUtils.clear();
-        final Float iDmm = 307f;
-        final Float oDmm = 323.6f;
-        final float spGr = 0.92f;
-        final float visAt100F = 460f;
-        final float visAt212F = 120f;
-        final float flowRateM3H = 400f;
-        final Float maxTempC = 84f;
-        final Float minTempC = 56f;
-        final float tsC = 20f;
-        final float lambdaS = 2f;
-        final float tinIn = 1.5f;
-        final float h = 1.5f;
-        final float lambdaC = 0.02f;
-        final float alphaT = 0.65f;
-        final float tf1 = 76f;
-        final float tf2 = 72f;
-        final float maxPumpPressure = 90f;
-        final Float maxTotalPressure = null;
-        final float pumpInitialIntakePressure = 4f;
-        final boolean reverse = true;
-
+    private StringBuilder steps;
+    
+    public HotLineResult hotLine(Float iDmm,
+                                 Float oDmm,
+                                 float spGr,
+                                 float visAt100F,
+                                 float visAt212F,
+                                 float flowRateM3H,
+                                 Float maxTempC,
+                                 Float minTempC,
+                                 float tsC,
+                                 float lambdaS,
+                                 float tinIn,
+                                 float h,
+                                 float lambdaC,
+                                 float alphaT,
+                                 float tf1,
+                                 float tf2,
+                                 float maxPumpPressure,
+                                 Float maxTotalPressure,
+                                 float pumpInitialIntakePressure,
+                                 boolean reverse) {
+        clear();
         if (maxTotalPressure == null && (minTempC == null || maxTempC == null)) {
             throw new IllegalArgumentException("Must either provide a temperature boundaries or a maximum pumping pressure");
         }
+//        if (reverse && maxTotalPressure == null && maxTempC == null) {
+//            throw new IllegalArgumentException("Must either provide a temperature boundaries or a maximum pumping pressure");
+//        }
+//        if (!reverse && maxTotalPressure == null && maxTempC == null) {
+//            throw new IllegalArgumentException("Must either provide a temperature boundaries or a maximum pumping pressure");
+//        }
 
         final float iD = iDmm / Constants.MmInMeter;
         final float oD = oDmm / Constants.MmInMeter;
@@ -124,8 +117,6 @@ public class HotLine {
         final var pressureTraverse = calculatePressureTraverse(maxPumpPressure, pumpInitialIntakePressure, reverse, totalLength, hotTableRows);
         final var temperatureTraverse = calculateTemperatureTraverse(hotTableRows, reverse);
 
-        showTraverse(pressureTraverse, temperatureTraverse, reverse);
-
         println("Simplified Ford:-");
         final float dtLaminar = (float) (3.39f * Math.pow(tinIn * 2.54f, -3.11));
         final float dtTrans = (float) (2.026f * Math.pow(tinIn * 2.59f, -0.52));
@@ -143,67 +134,13 @@ public class HotLine {
             simplifiedFordRows.add(newSection);
         }
         renderSimplifiedFordHotTable(simplifiedFordRows);
+        return new HotLineResult(physicalProperties, hotTableRows, pressureTraverse, temperatureTraverse, simplifiedFordRows, steps.toString());
     }
 
-    private static void showTraverse(Point[] pressureTraverse, Point[] temperatureTraverse, boolean reverse) {
-        XYChart.Series<Number, Number> series = new XYChart.Series();
-        for (var p: pressureTraverse) {
-            series.getData().add(new XYChart.Data(p.getX(), p.getY()));
-        }
-        XYChart.Series<Number, Number> series2 = new XYChart.Series();
-        for (var p: temperatureTraverse) {
-            series2.getData().add(new XYChart.Data(p.getX(), p.getY()));
-        }
-        //Defining the x an y axes
-        NumberAxis pressureXAxis = new NumberAxis();
-        NumberAxis tempXAxis = new NumberAxis();
-        if (reverse) {
-            final NumberAxis[] axes = {pressureXAxis, tempXAxis};
-            for (var axis: axes) {
-                axis.setTickLabelFormatter(new NumberAxis.DefaultFormatter(axis) {
-                    @Override
-                    public String toString(Number value) {
-                        // note we are printing minus value
-                        return String.format("%7.1f", -value.doubleValue());
-                    }
-                });
-            }
-        }
-        final var first = pressureTraverse[0];
-        final var last = pressureTraverse[pressureTraverse.length - 1];
-        NumberAxis pressureAxis = new NumberAxis();
-        NumberAxis tempAxis = new NumberAxis();
-        //Setting labels for the axes
-        pressureXAxis.setLabel("L(m)");
-        tempXAxis.setLabel("L(m)");
-        tempAxis.setLabel("T(°C)");
-        pressureAxis.setLabel("P(psi)");
-        LineChart<Number, Number> pressureChart = new LineChart<Number, Number>(pressureXAxis, pressureAxis);
-        pressureChart.getData().addAll(series);
-        LineChart<Number, Number> tempChart = new LineChart<Number, Number>(tempXAxis, tempAxis);
-        tempChart.getData().addAll(series2);
-        final List<XYChart.Series<Number, Number>> allSeries = List.of(series, series2);
-        for (var item: allSeries) {
-            for (XYChart.Data<Number, Number> entry : item.getData()) {
-                Tooltip t = new Tooltip("(" + String.format("%.2f", Math.abs((float) entry.getXValue())) + " , " + entry.getYValue().toString() + ")");
-                t.setShowDelay(new Duration(50));
-                Tooltip.install(entry.getNode(), t);
-            }
-        }
-        //Creating a stack pane to hold the chart
-        VBox box = new VBox(tempChart, pressureChart);
-        box.setPadding(new Insets(15, 15, 15, 15));
-        box.setStyle("-fx-background-color: BEIGE");
-        //Setting the Scene
-        Scene scene = new Scene(box, 595, 650);
-        Stage stage = new Stage();
-        stage.setTitle("Line Chart");
-        stage.setScene(scene);
-        stage.show();
-    }
+
 //°
 
-    private static Point[] calculateTemperatureTraverse(List<HotTableRow> hotTableRows, boolean reverse) {
+    private Point[] calculateTemperatureTraverse(List<HotTableRow> hotTableRows, boolean reverse) {
         final List<Point> pressureTraverse = new ArrayList<>();
         for (var point: hotTableRows) {
             final Point startPoint = Point.of(point.getSumL() - point.getL(), reverse ? point.getTf2() : point.getTf1());
@@ -223,7 +160,7 @@ public class HotLine {
     }
 
     @NotNull
-    private static Point[] calculatePressureTraverse(float maxPumpPressure, float pumpInitialIntakePressure, boolean reverse, float totalLength, List<HotTableRow> hotTableRows) {
+    private Point[] calculatePressureTraverse(float maxPumpPressure, float pumpInitialIntakePressure, boolean reverse, float totalLength, List<HotTableRow> hotTableRows) {
         final List<Point> pressureTraverse = new ArrayList<>();
         float finalPressure = reverse ? pumpInitialIntakePressure : maxPumpPressure;
         float finalLength = reverse ? totalLength : 0;
@@ -309,7 +246,7 @@ public class HotLine {
         return pressureTraverse.toArray(new Point[0]);
     }
 
-    private static void renderHotTable(List<HotTableRow> hotTableRows) {
+    private void renderHotTable(List<HotTableRow> hotTableRows) {
         final List<Object[]> table = new ArrayList<>();
         table.add(new Object[]{"No.", "Tf1", "Tf2", "Tf", "Ti", "ζi", "C", "Pt", "L", "ΣL", "Nre", "F", "hf", "∆P", "Σ∆P"});
         for (int i = 0; i < hotTableRows.size(); i++) {
@@ -321,7 +258,7 @@ public class HotLine {
         renderTable(table);
     }
 
-    private static void renderSimplifiedFordHotTable(List<HotTableRow> hotTableRows) {
+    private void renderSimplifiedFordHotTable(List<HotTableRow> hotTableRows) {
         final List<Object[]> table = new ArrayList<>();
         table.add(new Object[]{"No.", "Tf1", "Tf2", "Tf", "Ti", "ζi", "Nre", "Flow Type", "C", "F", "α", "k", "L", "ΣL"});
         for (int i = 0; i < hotTableRows.size(); i++) {
@@ -334,7 +271,7 @@ public class HotLine {
     }
 
     @NotNull
-    private static HotTableRow calculateSimplifiedFordHotTable(float tf2,
+    private HotTableRow calculateSimplifiedFordHotTable(float tf2,
                                                                float tf1,
                                                                float deltaT,
                                                                float oD,
@@ -377,7 +314,7 @@ public class HotLine {
     }
 
     @NotNull
-    private static HotTableRow calculateHotTable(float tf2,
+    private HotTableRow calculateHotTable(float tf2,
                                                  float tf1,
                                                  float alphaT,
                                                  float tsC,
@@ -416,7 +353,7 @@ public class HotLine {
         return new HotTableRow(tf1, tf2, tfBar, tI, visAtI, c, pT, null, length, sumLength, nRe, f, k, h, p, sumPressure);
     }
 
-    private static PhysicalProperties calculatePhysicalProperties(float iD,
+    private PhysicalProperties calculatePhysicalProperties(float iD,
                                                      float oD,
                                                      float spGr,
                                                      float v,
@@ -481,11 +418,11 @@ public class HotLine {
         return new PhysicalProperties(c, bt, pf, pt, nu, alpha1, alpha2, k, tfBar-ti);
     }
 
-    private static void renderTable(List<Object[]> args) {
+    private void renderTable(List<Object[]> args) {
         renderTable(args.toArray(new Object[0][0]));
     }
 
-    private static void renderTable(Object[] ... args) {
+    private void renderTable(Object[] ... args) {
         final var temp = args[0];
         final String[] firstRow = new String[temp.length];
         for (int i = 0; i < temp.length; i++) {
@@ -506,10 +443,15 @@ public class HotLine {
         println(rend);
     }
 
-    private static void println(@NotNull String pattern, Object... args) {
+    private void println(@NotNull String pattern, Object... args) {
         final String message = format(pattern, args);
-        System.out.println(message);
+        steps.append(message).append('\n');
         FileUtils.printOut(message);
+    }
+    
+    private void clear() {
+        steps = new StringBuilder();
+        FileUtils.clear();
     }
 
     @NotNull
