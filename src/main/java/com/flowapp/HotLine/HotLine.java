@@ -15,6 +15,7 @@ import javafx.scene.Scene;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
@@ -144,11 +145,11 @@ public class HotLine {
     }
 
     private static void showTraverse(Point[] pressureTraverse, Point[] temperatureTraverse, boolean reverse) {
-        XYChart.Series series = new XYChart.Series();
+        XYChart.Series<Number, Number> series = new XYChart.Series();
         for (var p: pressureTraverse) {
             series.getData().add(new XYChart.Data(p.getX(), p.getY()));
         }
-        XYChart.Series series2 = new XYChart.Series();
+        XYChart.Series<Number, Number> series2 = new XYChart.Series();
         for (var p: temperatureTraverse) {
             series2.getData().add(new XYChart.Data(p.getX(), p.getY()));
         }
@@ -173,12 +174,21 @@ public class HotLine {
         NumberAxis tempAxis = new NumberAxis();
         //Setting labels for the axes
         pressureXAxis.setLabel("L(m)");
+        tempXAxis.setLabel("L(m)");
         tempAxis.setLabel("T(°C)");
         pressureAxis.setLabel("P(psi)");
         LineChart<Number, Number> pressureChart = new LineChart<Number, Number>(pressureXAxis, pressureAxis);
         pressureChart.getData().addAll(series);
         LineChart<Number, Number> tempChart = new LineChart<Number, Number>(tempXAxis, tempAxis);
         tempChart.getData().addAll(series2);
+        final List<XYChart.Series<Number, Number>> allSeries = List.of(series, series2);
+        for (var item: allSeries) {
+            for (XYChart.Data<Number, Number> entry : item.getData()) {
+                System.out.println("Entered!");
+                Tooltip t = new Tooltip("(" + String.format("%.2f", Math.abs((float) entry.getXValue())) + " , " + entry.getYValue().toString() + ")");
+                Tooltip.install(entry.getNode(), t);
+            }
+        }
         //Creating a stack pane to hold the chart
         VBox box = new VBox(tempChart, pressureChart);
         box.setPadding(new Insets(15, 15, 15, 15));
