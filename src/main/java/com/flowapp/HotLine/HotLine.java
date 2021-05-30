@@ -34,6 +34,7 @@ public class HotLine {
                                  float alphaT,
                                  float tf1,
                                  float tf2,
+                                 float dtAssumption,
                                  float maxPumpPressure,
                                  Float maxTotalPressure,
                                  float pumpInitialIntakePressure,
@@ -58,7 +59,7 @@ public class HotLine {
         final float velocityMSec = (float) (4 * flowRateM3H / (3.14 * 3600 * Math.pow(iD, 2)));
         println ("v = 4Q/(π * ID^2) = 4 * {} / (π * ({})^2) = {} m/sec", flowRateM3H, iD, velocityMSec);
         println("Tf  = ({} + {}) / 2 = {} C", tf1, tf2, tfBar);
-        float deltaT = 1.5f;
+        float deltaT = dtAssumption;
         PhysicalProperties physicalProperties;
         while (true)
         {
@@ -127,10 +128,12 @@ public class HotLine {
         final Map<FlowType, Float> deltaTMap = Map.of(FlowType.LAMINAR, dtLaminar, FlowType.TRANSITIONAL, dtTrans, FlowType.TURBULENT, dtTurbulent);
         final List<HotTableRow> simplifiedFordRows = new ArrayList<>();
         totalLength = 0;
+        totalPressure = 0;
         for (var section: hotTableRows) {
             final float dT = deltaTMap.get(section.getFlowType());
-            final var newSection = calculateSimplifiedFordHotTable(section.getTf2(), section.getTf1(), dT, oD, iD, flowRateM3H, spGr, tsC, lambdaC, tinIn, physicalProperties.getAlpha2(), visAt100F, visAt212F, totalLength);
+            final var newSection = calculateSimplifiedFordHotTable(section.getTf2(), section.getTf1(), alphaT, dT, oD, iD, flowRateM3H, velocityMSec, spGr, tsC, lambdaC, tinIn, physicalProperties.getAlpha2(), visAt100F, visAt212F, totalLength, totalPressure);
             totalLength += newSection.getL();
+            totalPressure += newSection.getDeltaP();
             simplifiedFordRows.add(newSection);
         }
         renderSimplifiedFordHotTable(simplifiedFordRows);
@@ -260,12 +263,12 @@ public class HotLine {
 
     private void renderSimplifiedFordHotTable(List<HotTableRow> hotTableRows) {
         final List<Object[]> table = new ArrayList<>();
-        table.add(new Object[]{"No.", "Tf1", "Tf2", "Tf", "Ti", "ζi", "Nre", "Flow Type", "C", "F", "α", "k", "L", "ΣL"});
+        table.add(new Object[]{"No.", "Tf1", "Tf2", "Tf", "Ti", "ζi", "Nre", "Flow Type", "C", "F", "hf", "k", "L", "ΣL", "∆P", "Σ∆P"});
         for (int i = 0; i < hotTableRows.size(); i++) {
             final var section = hotTableRows.get(i);
             table.add(new Object[]{i+1, section.getTf1(), section.getTf2(), section.getTfBar(), section.getTi(), section.getVisAtI(),
-                    section.getNre(), section.getFlowType(), section.getC(), section.getF(), section.getAlpha(),
-                    section.getK(), section.getL(), section.getSumL()});
+                    section.getNre(), section.getFlowType(), section.getC(), section.getF(), section.getHf(),
+                    section.getK(), section.getL(), section.getSumL(), section.getDeltaP(), section.getSumP()});
         }
         renderTable(table);
     }
@@ -273,10 +276,12 @@ public class HotLine {
     @NotNull
     private HotTableRow calculateSimplifiedFordHotTable(float tf2,
                                                                float tf1,
+                                                               float alphaT,
                                                                float deltaT,
                                                                float oD,
                                                                float iD,
                                                                float flowRateM3H,
+                                                               float velocityMSec,
                                                                float spGr,
                                                                float tsC,
                                                                float lambdaC,
@@ -284,7 +289,8 @@ public class HotLine {
                                                                float alpha2,
                                                                float visAt100F,
                                                                float visAt212F,
-                                                               float totalLength) {
+                                                               float totalLength,
+                                                               float totalPressure) {
 
 
 
@@ -293,6 +299,7 @@ public class HotLine {
         final float w = (float) (Math.log10(Math.log10(visAt100F)) + 36 * j);
         final float tI = tfBar - deltaT;
         final float visAtI = (float) Math.pow(10, Math.pow(10, w-j*tI));
+        final float pT = 1000 * spGr - alphaT * (tI - 20);
         final float nRe = flowRateM3H / (2827.44f * iD * visAtI * 1e-6f);
         final float f;
         final float alpha1;
@@ -310,7 +317,10 @@ public class HotLine {
         final float c = (float) (762.5f+3.38f*(tI+Constants.ZeroCInKelvin)/Math.sqrt(spGr));
         final float l = (float) (- Math.log((tf2-tsC) / (tf1 - tsC)) * (flowRateM3H * spGr * c) / (3600 * k));
         final float y = totalLength + l;
-        return new HotTableRow(tf1, tf2, tfBar, tI, visAtI, c, null, alpha1, l, y, nRe, f, k, null, null, null);
+        final float h = (float) (1000 * f * l * Math.pow(velocityMSec, 2) / (19.6f * iD));
+        final float p = h * pT / 10000;
+        final float sumPressure = totalPressure + p;
+        return new HotTableRow(tf1, tf2, tfBar, tI, visAtI, c, pT, alpha1, l, y, nRe, f, k, h, p, sumPressure);
     }
 
     @NotNull

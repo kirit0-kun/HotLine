@@ -88,6 +88,9 @@ public class MainWindowController implements Initializable {
     private TextField pumpInitialPressureTextField;
 
     @FXML
+    private TextField firstDtAssumptionTB;
+
+    @FXML
     private TextArea answerArea;
 
     @FXML
@@ -106,7 +109,7 @@ public class MainWindowController implements Initializable {
                 vis212TextField,flowRateTextField,maxTempTextField,
                 minTempTextField,tsTextField,lambdaSTextField,tinTextField,
                 hTextField,lambdaCTextField,alphaCTextField,tf1TextField,
-                tf2TextField,maxPumpPressureTextField,noPumpsTextField,
+                tf2TextField,maxPumpPressureTextField,noPumpsTextField,firstDtAssumptionTB,
                 pumpInitialPressureTextField
         };
         for (var field: textFields) {
@@ -151,6 +154,7 @@ public class MainWindowController implements Initializable {
         final float alphaT = getFloat(alphaCTextField.getText());
         final float tf1 = getFloat(tf1TextField.getText());
         final float tf2 = getFloat(tf2TextField.getText());
+        final float firstDtAssumption = getFloat(firstDtAssumptionTB.getText());
         final float maxPumpPressure = getFloat(maxPumpPressureTextField.getText());
         final Integer pumpsNum = getInteger(noPumpsTextField.getText());
         final Float maxTotalPressure = pumpsNum == null ? null : pumpsNum * maxPumpPressure;
@@ -179,7 +183,7 @@ public class MainWindowController implements Initializable {
                         lambdaC,
                         alphaT,
                         tf1,
-                        tf2,
+                        tf2,firstDtAssumption,
                         maxPumpPressure,
                         maxTotalPressure,
                         pumpInitialIntakePressure,
