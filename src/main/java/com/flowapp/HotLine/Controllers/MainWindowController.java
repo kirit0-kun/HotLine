@@ -4,7 +4,6 @@ import com.flowapp.HotLine.HotLine;
 import com.flowapp.HotLine.Models.HotLineResult;
 import com.flowapp.HotLine.Models.Point;
 import javafx.beans.binding.Bindings;
-import javafx.concurrent.Service;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -35,6 +34,9 @@ public class MainWindowController implements Initializable {
 
     @FXML
     private CheckBox isReverseCheckBox;
+
+    @FXML
+    private CheckBox isSimplifiedOnlyCheckBox;
 
     @FXML
     private TextField spGrTextField;
@@ -88,7 +90,10 @@ public class MainWindowController implements Initializable {
     private TextField pumpInitialPressureTextField;
 
     @FXML
-    private TextField firstDtAssumptionTB;
+    private TextField firstDtAssumptionTextBox;
+
+    @FXML
+    private TextField dTAllowedErrorTextBox;
 
     @FXML
     private TextArea answerArea;
@@ -109,7 +114,7 @@ public class MainWindowController implements Initializable {
                 vis212TextField,flowRateTextField,maxTempTextField,
                 minTempTextField,tsTextField,lambdaSTextField,tinTextField,
                 hTextField,lambdaCTextField,alphaCTextField,tf1TextField,
-                tf2TextField,maxPumpPressureTextField,noPumpsTextField,firstDtAssumptionTB,
+                tf2TextField,maxPumpPressureTextField,noPumpsTextField, firstDtAssumptionTextBox,dTAllowedErrorTextBox,
                 pumpInitialPressureTextField
         };
         for (var field: textFields) {
@@ -154,12 +159,14 @@ public class MainWindowController implements Initializable {
         final float alphaT = getFloat(alphaCTextField.getText());
         final float tf1 = getFloat(tf1TextField.getText());
         final float tf2 = getFloat(tf2TextField.getText());
-        final float firstDtAssumption = getFloat(firstDtAssumptionTB.getText());
+        final float firstDtAssumption = getFloat(firstDtAssumptionTextBox.getText());
+        final float dTAllowedError = getFloat(dTAllowedErrorTextBox.getText());
         final float maxPumpPressure = getFloat(maxPumpPressureTextField.getText());
         final Integer pumpsNum = getInteger(noPumpsTextField.getText());
         final Float maxTotalPressure = pumpsNum == null ? null : pumpsNum * maxPumpPressure;
         final float pumpInitialIntakePressure = getFloat(pumpInitialPressureTextField.getText());
         final boolean reverse = isReverseCheckBox.isSelected();
+        final boolean simplifiedOnly = isSimplifiedOnlyCheckBox.isSelected();
 
         final var task = new Task<HotLineResult>() {
             Alert loadingDialog;
@@ -183,11 +190,11 @@ public class MainWindowController implements Initializable {
                         lambdaC,
                         alphaT,
                         tf1,
-                        tf2,firstDtAssumption,
+                        tf2,firstDtAssumption,dTAllowedError,
                         maxPumpPressure,
                         maxTotalPressure,
                         pumpInitialIntakePressure,
-                        reverse);
+                        reverse, simplifiedOnly);
             }
 
             @Override

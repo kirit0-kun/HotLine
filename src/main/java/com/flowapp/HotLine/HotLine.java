@@ -35,10 +35,11 @@ public class HotLine {
                                  float tf1,
                                  float tf2,
                                  float dtAssumption,
+                                 float dTAllowedError,
                                  float maxPumpPressure,
                                  Float maxTotalPressure,
                                  float pumpInitialIntakePressure,
-                                 boolean reverse) {
+                                 boolean reverse, boolean simplifiedOnly) {
         clear();
         if (maxTotalPressure == null && (minTempC == null || maxTempC == null)) {
             throw new IllegalArgumentException("Must either provide a temperature boundaries or a maximum pumping pressure");
@@ -69,11 +70,11 @@ public class HotLine {
             final float newDeltaT = physicalProperties.getDeltaT();
             println("then ∆T = {} C", physicalProperties.getDeltaT());
             final float diff = Math.abs(newDeltaT - deltaT);
-            if (diff > Constants.AllowedErrorInDeltaT) {
-                println("| assumed ∆T - calculated ∆T | = | {} - {} | = {} C > {} C, so unsuitable", deltaT, newDeltaT, diff, Constants.AllowedErrorInDeltaT);
+            if (diff > dTAllowedError) {
+                println("| assumed ∆T - calculated ∆T | = | {} - {} | = {} C > {} C, so unsuitable", deltaT, newDeltaT, diff, dTAllowedError);
                 deltaT = newDeltaT;
             } else {
-                println("| assumed ∆T - calculated ∆T | = | {} - {} | = {} C < {} C, so suitable", deltaT, newDeltaT, diff, Constants.AllowedErrorInDeltaT);
+                println("| assumed ∆T - calculated ∆T | = | {} - {} | = {} C < {} C, so suitable", deltaT, newDeltaT, diff, dTAllowedError);
                 break;
             }
         }
@@ -115,8 +116,6 @@ public class HotLine {
         renderHotTable(hotTableRows);
         final int noStations = (int) Math.ceil(totalPressure / maxPumpPressure);
         println("No. of Stations = {}/{} = {} stations", totalPressure, maxPumpPressure, noStations);
-        final var pressureTraverse = calculatePressureTraverse(maxPumpPressure, pumpInitialIntakePressure, reverse, totalLength, hotTableRows);
-        final var temperatureTraverse = calculateTemperatureTraverse(hotTableRows, reverse);
 
         println("Simplified Ford:-");
         final float dtLaminar = (float) (3.39f * Math.pow(tinIn * 2.54f, -3.11));
@@ -137,6 +136,14 @@ public class HotLine {
             simplifiedFordRows.add(newSection);
         }
         renderSimplifiedFordHotTable(simplifiedFordRows);
+        final List<HotTableRow> plotRows;
+        if (simplifiedOnly) {
+            plotRows = simplifiedFordRows;
+        } else {
+            plotRows = hotTableRows;
+        }
+        final var pressureTraverse = calculatePressureTraverse(maxPumpPressure, pumpInitialIntakePressure, reverse, totalLength, plotRows);
+        final var temperatureTraverse = calculateTemperatureTraverse(plotRows, reverse);
         return new HotLineResult(physicalProperties, hotTableRows, pressureTraverse, temperatureTraverse, simplifiedFordRows, steps.toString());
     }
 
