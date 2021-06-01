@@ -5,12 +5,12 @@ import java.util.List;
 public class HotLineResult {
     private final PhysicalProperties physicalProperties;
     private final List<HotTableRow> hotTableRows;
-    private final Point[] pressureTraverse;
+    private final PressureTraverse pressureTraverse;
     private final Point[] temperatureTraverse;
     private final List<HotTableRow> simplifiedFordRows;
     private final String steps;
 
-    public HotLineResult(PhysicalProperties physicalProperties, List<HotTableRow> hotTableRows, Point[] pressureTraverse, Point[] temperatureTraverse, List<HotTableRow> simplifiedFordRows, String steps) {
+    public HotLineResult(PhysicalProperties physicalProperties, List<HotTableRow> hotTableRows, PressureTraverse pressureTraverse, Point[] temperatureTraverse, List<HotTableRow> simplifiedFordRows, String steps) {
         this.physicalProperties = physicalProperties;
         this.hotTableRows = hotTableRows;
         this.pressureTraverse = pressureTraverse;
@@ -27,7 +27,7 @@ public class HotLineResult {
         return hotTableRows;
     }
 
-    public Point[] getPressureTraverse() {
+    public PressureTraverse getPressureTraverse() {
         return pressureTraverse;
     }
 

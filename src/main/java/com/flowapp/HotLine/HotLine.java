@@ -170,25 +170,26 @@ public class HotLine {
     }
 
     @NotNull
-    private Point[] calculatePressureTraverse(float maxPumpPressure, float pumpInitialIntakePressure, boolean reverse, float totalLength, List<HotTableRow> hotTableRows) {
+    private PressureTraverse calculatePressureTraverse(float maxPumpPressure, float pumpInitialIntakePressure, boolean reverse, float totalLength, List<HotTableRow> hotTableRows) {
         final List<Point> pressureTraverse = new ArrayList<>();
+        final List<Tuple2<Point, Point>> workLines = new ArrayList<>();
         float finalPressure = reverse ? pumpInitialIntakePressure : maxPumpPressure;
         float finalLength = reverse ? totalLength : 0;
         final int pressureSign = reverse ? 1 : -1;
         final int lengthSign = reverse ? -1 : 1;
-        Point lastPoint = Point.of(finalLength, finalPressure);
-        pressureTraverse.add(lastPoint);
-        for (int i = 0; i < hotTableRows.size(); i++) {
+        Point FirstPoint = Point.of(finalLength, finalPressure);
+        pressureTraverse.add(FirstPoint);
+        for (var section : hotTableRows) {
             float lastLength = finalLength;
             float lastPressure = finalPressure;
-            final var section = hotTableRows.get(i);
             finalPressure += pressureSign * section.getDeltaP();
             finalLength += lengthSign * section.getL();
-            Point newPoint = Point.of(finalLength, finalPressure);
             while (finalPressure > maxPumpPressure) {
+                Point newPoint = Point.of(finalLength, finalPressure);
                 finalPressure = finalPressure - maxPumpPressure + pumpInitialIntakePressure;
                 final float middlePressure = maxPumpPressure;
-                lastPoint = Point.of(lastLength, lastPressure);
+                Point lastPoint = Point.of(lastLength, lastPressure);
+                workLines.add(Tuple2.of(lastPoint, newPoint));
                 final Curve line = new Linear(lastPoint, newPoint);
                 final float middleLength = line.getX(middlePressure);
                 lastLength = middleLength;
@@ -199,9 +200,11 @@ public class HotLine {
                 pressureTraverse.add(newPoint);
             }
             while (finalPressure < pumpInitialIntakePressure) {
+                Point newPoint = Point.of(finalLength, finalPressure);
                 finalPressure = finalPressure + maxPumpPressure - pumpInitialIntakePressure;
                 final float middlePressure = pumpInitialIntakePressure;
-                lastPoint = Point.of(lastLength, lastPressure);
+                Point lastPoint = Point.of(lastLength, lastPressure);
+                workLines.add(Tuple2.of(lastPoint, newPoint));
                 final Curve line = new Linear(lastPoint, newPoint);
                 final float middleLength = line.getX(middlePressure);
                 lastLength = middleLength;
@@ -211,7 +214,7 @@ public class HotLine {
                 newPoint = Point.of(middleLength, maxPumpPressure);
                 pressureTraverse.add(newPoint);
             }
-            newPoint = Point.of(finalLength, finalPressure);
+            Point newPoint = Point.of(finalLength, finalPressure);
             pressureTraverse.add(newPoint);
         }
         if (!reverse) {
@@ -219,6 +222,7 @@ public class HotLine {
                     .filter( item -> item.getY() == maxPumpPressure)
                     .findFirst().orElse(null);
             if (last != null) {
+                final List<Tuple2<Point, Point>> lastWorkLines = new ArrayList<>();
                 final int startIndex = pressureTraverse.lastIndexOf(last);
                 final var lastItems = new ArrayList<>(pressureTraverse.subList(startIndex, pressureTraverse.size()));
                 pressureTraverse.removeAll(lastItems);
@@ -230,6 +234,7 @@ public class HotLine {
                         continue;
                     }
                     final Point newPoint = lastItems.get(i);
+                    lastWorkLines.add(Tuple2.of(newPoint, lastOldPoint));
                     final var slope = new Linear(newPoint, lastOldPoint).getSlope();
                     final var newLastPoint = Point.of(lastOldPoint.getX(), lastPressure);
                     final var newLastLine = new Linear(slope, newLastPoint);
@@ -242,8 +247,12 @@ public class HotLine {
                 }
                 if (lastOldPoint != null) {
                     final int lastIndex = lastItems.indexOf(lastOldPoint);
+                    final var before = lastItems.get(lastIndex);
                     lastItems.set(lastIndex, Point.of(lastOldPoint.getX(), lastPressure));
+                    lastWorkLines.add(Tuple2.of(Point.of(lastOldPoint.getX(), lastPressure), Point.of(lastOldPoint.getX(), before.getY())));
                 }
+                Collections.reverse(lastWorkLines);
+                workLines.addAll(lastWorkLines);
                 pressureTraverse.addAll(lastItems);
             }
         } else {
@@ -252,8 +261,13 @@ public class HotLine {
                 pressureTraverse.set(i, Point.of(oldPoint.getX() - totalLength, oldPoint.getY()));
             }
             Collections.reverse(pressureTraverse);
+            for (int i = 0; i < workLines.size(); i++) {
+                final var line = workLines.get(i);
+                final var newLine = Tuple2.of(Point.of(line.getSecond().getX() - totalLength, line.getSecond().getY()), Point.of(line.getFirst().getX() - totalLength, line.getFirst().getY()));
+                workLines.set(i, newLine);
+            }
         }
-        return pressureTraverse.toArray(new Point[0]);
+        return new PressureTraverse(pressureTraverse, workLines);
     }
 
     private void renderHotTable(List<HotTableRow> hotTableRows) {
@@ -445,7 +459,7 @@ public class HotLine {
         for (int i = 0; i < temp.length; i++) {
             firstRow[i] = temp[i].toString();
         }
-        TableList at = new TableList(firstRow).sortBy(0).withUnicode(true);
+        TableList at = new TableList(firstRow).withUnicode(true);
         final var newRows = Arrays.stream(args).skip(1).map( row -> {
             final String[] newRow = new String[row.length];
             for (int i = 0; i < row.length; i++) {

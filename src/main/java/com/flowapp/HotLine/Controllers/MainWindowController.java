@@ -3,6 +3,7 @@ package com.flowapp.HotLine.Controllers;
 import com.flowapp.HotLine.HotLine;
 import com.flowapp.HotLine.Models.HotLineResult;
 import com.flowapp.HotLine.Models.Point;
+import com.flowapp.HotLine.Models.PressureTraverse;
 import javafx.beans.binding.Bindings;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
@@ -21,6 +22,7 @@ import javafx.util.Duration;
 import java.net.URL;
 import java.text.DecimalFormat;
 import java.text.ParsePosition;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.ResourceBundle;
 
@@ -286,12 +288,22 @@ public class MainWindowController implements Initializable {
         return alert;
     }
 
-    private void showTraverse(Point[] pressureTraverse, Point[] temperatureTraverse, boolean reverse) {
+    private void showTraverse(PressureTraverse pressureTraverse, Point[] temperatureTraverse, boolean reverse) {
+        final String workingLineTitle = "Work Line";
         XYChart.Series<Number, Number> pressureSeries = new XYChart.Series();
         pressureSeries.setName("Pressure Plot");
-        for (var p: pressureTraverse) {
+        for (var p: pressureTraverse.getPressureTraverse()) {
             pressureSeries.getData().add(new XYChart.Data(p.getX(), p.getY()));
         }
+        List<XYChart.Series<Number, Number>> pressureWorkingLinesSeries = new ArrayList<>();
+        for (var p: pressureTraverse.getWorkLines()) {
+            XYChart.Series<Number, Number> workingLine = new XYChart.Series();
+            workingLine.getData().add(new XYChart.Data(p.getFirst().getX(), p.getFirst().getY()));
+            workingLine.getData().add(new XYChart.Data(p.getSecond().getX(), p.getSecond().getY()));
+            workingLine.setName(workingLineTitle);
+            pressureWorkingLinesSeries.add(workingLine);
+        }
+
         XYChart.Series<Number, Number> tempSeries = new XYChart.Series();
         tempSeries.setName("Temp Plot");
         for (var p: temperatureTraverse) {
@@ -312,8 +324,6 @@ public class MainWindowController implements Initializable {
                 });
             }
         }
-        final var first = pressureTraverse[0];
-        final var last = pressureTraverse[pressureTraverse.length - 1];
         NumberAxis pressureAxis = new NumberAxis();
         NumberAxis tempAxis = new NumberAxis();
         //Setting labels for the axes
@@ -322,10 +332,15 @@ public class MainWindowController implements Initializable {
         tempAxis.setLabel("T(°C)");
         pressureAxis.setLabel("P(psi)");
         LineChart<Number, Number> pressureChart = new LineChart<Number, Number>(pressureXAxis, pressureAxis);
-        pressureChart.getData().addAll(pressureSeries);
+        pressureChart.getData().addAll(pressureWorkingLinesSeries);
+        for (var series: pressureChart.getData()) {
+            series.getNode().setStyle("-fx-stroke-dash-array: 2 8 8 2; -fx-stroke: #00ff00");
+        }
+        pressureChart.getData().add(pressureSeries);
         LineChart<Number, Number> tempChart = new LineChart<Number, Number>(tempXAxis, tempAxis);
-        tempChart.getData().addAll(tempSeries);
-        final List<XYChart.Series<Number, Number>> allSeries = List.of(pressureSeries, tempSeries);
+        tempChart.getData().add(tempSeries);
+        final List<XYChart.Series<Number, Number>> allSeries = new ArrayList<>(List.of(pressureSeries, tempSeries));
+        allSeries.addAll(pressureWorkingLinesSeries);
         for (var item: allSeries) {
             for (XYChart.Data<Number, Number> entry : item.getData()) {
                 Tooltip t = new Tooltip("(" + String.format("%.2f", Math.abs((float) entry.getXValue())) + " , " + entry.getYValue().toString() + ")");
