@@ -104,19 +104,20 @@ public class HotLine {
         float totalPressure = 0;
         final List<HotTableRow> hotTableRows = new ArrayList<>();
         float first = start;
-        while (maxTotalPressure == null ? (reverse ? first < end : end < first) : totalPressure < maxTotalPressure) {
-            final float t1 = reverse ? (first + delta) : first;
-            final float t2 = reverse ? first : (first + delta);
-            final var section = calculateHotTable(t2, t1, alphaT, tsC, spGr, deltaT, flowRateM3H, physicalProperties.getK(), velocityMSec, iD, visAt100F, visAt212F, totalLength, totalPressure);
-            hotTableRows.add(section);
-            totalLength += section.getL();
-            totalPressure += section.getDeltaP();
-            first += delta;
+        if (!simplifiedOnly) {
+            while (maxTotalPressure == null ? (reverse ? first < end : end < first) : totalPressure < maxTotalPressure) {
+                final float t1 = reverse ? (first + delta) : first;
+                final float t2 = reverse ? first : (first + delta);
+                final var section = calculateHotTable(t2, t1, alphaT, tsC, spGr, deltaT, flowRateM3H, physicalProperties.getK(), velocityMSec, iD, visAt100F, visAt212F, totalLength, totalPressure);
+                hotTableRows.add(section);
+                totalLength += section.getL();
+                totalPressure += section.getDeltaP();
+                first += delta;
+            }
+            renderHotTable(hotTableRows);
+            final int noStations = (int) Math.ceil(totalPressure / maxPumpPressure);
+            println("No. of Stations = {}/{} = {} stations", totalPressure, maxPumpPressure, noStations);
         }
-        renderHotTable(hotTableRows);
-        final int noStations = (int) Math.ceil(totalPressure / maxPumpPressure);
-        println("No. of Stations = {}/{} = {} stations", totalPressure, maxPumpPressure, noStations);
-
         println("Simplified Ford:-");
         final float dtLaminar = (float) (3.39f * Math.pow(tinIn * 2.54f, -3.11));
         final float dtTrans = (float) (2.026f * Math.pow(tinIn * 2.59f, -0.52));
@@ -128,12 +129,15 @@ public class HotLine {
         final List<HotTableRow> simplifiedFordRows = new ArrayList<>();
         totalLength = 0;
         totalPressure = 0;
-        for (var section: hotTableRows) {
-            final float dT = deltaTMap.get(section.getFlowType());
-            final var newSection = calculateSimplifiedFordHotTable(section.getTf2(), section.getTf1(), alphaT, dT, oD, iD, flowRateM3H, velocityMSec, spGr, tsC, lambdaC, tinIn, physicalProperties.getAlpha2(), visAt100F, visAt212F, totalLength, totalPressure);
+        first = start;
+        while (maxTotalPressure == null ? (reverse ? first < end : end < first) : totalPressure < maxTotalPressure) {
+            final float t1 = reverse ? (first + delta) : first;
+            final float t2 = reverse ? first : (first + delta);
+            final var newSection = calculateSimplifiedFordHotTable(t2, t1, alphaT, physicalProperties.getFlowType(), deltaTMap, oD, iD, flowRateM3H, velocityMSec, spGr, tsC, lambdaC, tinIn, physicalProperties.getAlpha2(), visAt100F, visAt212F, totalLength, totalPressure);
+            simplifiedFordRows.add(newSection);
             totalLength += newSection.getL();
             totalPressure += newSection.getDeltaP();
-            simplifiedFordRows.add(newSection);
+            first += delta;
         }
         renderSimplifiedFordHotTable(simplifiedFordRows);
         final List<HotTableRow> plotRows;
@@ -298,7 +302,8 @@ public class HotLine {
     private HotTableRow calculateSimplifiedFordHotTable(float tf2,
                                                                float tf1,
                                                                float alphaT,
-                                                               float deltaT,
+                                                               FlowType flowType,
+                                                               Map<FlowType, Float> deltaTMap,
                                                                float oD,
                                                                float iD,
                                                                float flowRateM3H,
@@ -313,15 +318,38 @@ public class HotLine {
                                                                float totalLength,
                                                                float totalPressure) {
 
-
-
         final float tfBar = (tf2 + tf1)/2; // tf
         final float j = (float) ((Math.log10(Math.log10(visAt100F)) - Math.log10(Math.log10(visAt212F))) / 62);
         final float w = (float) (Math.log10(Math.log10(visAt100F)) + 36 * j);
-        final float tI = tfBar - deltaT;
-        final float visAtI = (float) Math.pow(10, Math.pow(10, w-j*tI));
-        final float pT = 1000 * spGr - alphaT * (tI - 20);
-        final float nRe = flowRateM3H / (2827.44f * iD * visAtI * 1e-6f);
+
+        float deltaT = deltaTMap.get(flowType);
+
+        float tI;
+        float visAtI;
+        float pT;
+        float nRe;
+
+        while (true) {
+            tI = tfBar - deltaT;
+            visAtI = (float) Math.pow(10, Math.pow(10, w - j * tI));
+            pT = 1000 * spGr - alphaT * (tI - 20);
+            nRe = flowRateM3H / (2827.44f * iD * visAtI * 1e-6f);
+            final FlowType newFlowType;
+            if (nRe <= Constants.LaminarFlowMaxNre) {
+                newFlowType = FlowType.LAMINAR;
+            } else if (nRe < Constants.TurbulentFlowMaxNre) {
+                newFlowType = FlowType.TRANSITIONAL;
+            } else {
+                newFlowType = FlowType.TURBULENT;
+            }
+            if (newFlowType == flowType) {
+                break;
+            } else {
+                flowType = newFlowType;
+                deltaT = deltaTMap.get(newFlowType);
+            }
+        }
+
         final float f;
         final float alpha1;
         if (nRe <= Constants.LaminarFlowMaxNre) {
@@ -446,7 +474,7 @@ public class HotLine {
         println("K = {}",k);
         ti = (float) (tfBar - (k * (tfBar - tsC) / (Math.PI * alpha1 * iD)));
         println("Ti(calc) = {} C", ti);
-        return new PhysicalProperties(c, bt, pf, pt, nu, alpha1, alpha2, k, tfBar-ti);
+        return new PhysicalProperties(c, bt, pf, pt, nu, alpha1, alpha2, k, tfBar-ti, nre);
     }
 
     private void renderTable(List<Object[]> args) {

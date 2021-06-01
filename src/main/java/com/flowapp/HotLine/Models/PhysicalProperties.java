@@ -1,5 +1,9 @@
 package com.flowapp.HotLine.Models;
 
+import com.flowapp.HotLine.Utils.Constants;
+
+import java.util.concurrent.Flow;
+
 public class PhysicalProperties {
     private final float c;
     private final float bT;
@@ -9,9 +13,11 @@ public class PhysicalProperties {
     private final float alpha1;
     private final float alpha2;
     private final float k;
+    private final float nre;
+    private final FlowType flowType;
     private float deltaT;
 
-    public PhysicalProperties(float c, float bT, float lambdaF, float pT, float nu, float alpha1, float alpha2, float k, float deltaT) {
+    public PhysicalProperties(float c, float bT, float lambdaF, float pT, float nu, float alpha1, float alpha2, float k, float deltaT, float nre) {
         this.c = c;
         this.bT = bT;
         this.lambdaF = lambdaF;
@@ -21,6 +27,14 @@ public class PhysicalProperties {
         this.alpha2 = alpha2;
         this.k = k;
         this.deltaT = deltaT;
+        this.nre = nre;
+        if (nre <= Constants.LaminarFlowMaxNre) {
+            flowType = FlowType.LAMINAR;
+        } else if (nre < Constants.TurbulentFlowMaxNre) {
+            flowType = FlowType.TRANSITIONAL;
+        } else {
+            flowType = FlowType.TURBULENT;
+        }
     }
 
     public float getC() {
@@ -53,6 +67,14 @@ public class PhysicalProperties {
 
     public float getK() {
         return k;
+    }
+
+    public float getNre() {
+        return nre;
+    }
+
+    public FlowType getFlowType() {
+        return flowType;
     }
 
     public float getDeltaT() {
