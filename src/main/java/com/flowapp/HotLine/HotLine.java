@@ -120,7 +120,7 @@ public class HotLine {
         }
         println("Simplified Ford:-");
         final float dtLaminar = (float) (3.39f * Math.pow(tinIn * 2.54f, -3.11));
-        final float dtTrans = (float) (2.026f * Math.pow(tinIn * 2.59f, -0.52));
+        final float dtTrans = (float) (2.026f * Math.pow(tinIn * 2.54f, -0.52));
         final float dtTurbulent = (float) (1.08f * Math.pow(tinIn * 2.54f, -0.394));
         println("For Laminar Flow dt = 3.39 * ({} * 2.54) ^ -3.11 = {} C", tinIn, dtLaminar);
         println("For Transitional Flow dt = 2.026 * ({} * 2.59) ^ -0.52 = {} C", tinIn, dtTrans);
@@ -488,10 +488,15 @@ public class HotLine {
             firstRow[i] = temp[i].toString();
         }
         TableList at = new TableList(firstRow).withUnicode(true);
-        final var newRows = Arrays.stream(args).skip(1).map( row -> {
+        final var newRows = Arrays.stream(args).skip(1).map(row -> {
             final String[] newRow = new String[row.length];
             for (int i = 0; i < row.length; i++) {
-                newRow[i] = row[i].toString();
+                final Object object = row[i];
+                if (object instanceof Number) {
+                    newRow[i] = formatNumber((Number) object);
+                } else {
+                    newRow[i] = object.toString();
+                }
             }
             return newRow;
         }).collect(Collectors.toList());
@@ -507,14 +512,25 @@ public class HotLine {
         steps.append(message).append('\n');
         FileUtils.printOut(message);
     }
-    
+
     private void clear() {
         steps = new StringBuilder();
         FileUtils.clear();
     }
 
+    private String formatNumber(Number number) {
+        final var value = number.floatValue();
+        if (value < 0) {
+            return String.format("%.7f", value);
+        } else if (value == 0) {
+            return  "0";
+        } else {
+            return String.format("%.4f", value).replace(".0000", "");
+        }
+    }
+
     @NotNull
-    private static String format(@NotNull String pattern, Object... args) {
+    private String format(@NotNull String pattern, Object... args) {
         Pattern rePattern = Pattern.compile("\\{([0-9+-]*)}", Pattern.CASE_INSENSITIVE);
         Matcher matcher = rePattern.matcher(pattern);
         int counter = -1;
@@ -536,13 +552,20 @@ public class HotLine {
             }
             counter = clamp(counter, 0, args.length - 1);
             String toChange = "\\{" + number + "}";
-            String result = args[counter].toString();
+            Object object = args[counter];
+            String objectString;
+            if (object instanceof Number) {
+                objectString = formatNumber((Number) object);
+            } else {
+                objectString = object.toString();
+            }
+            String result = objectString;
             pattern = pattern.replaceFirst(toChange, result);
         }
         return pattern;
     }
 
-    private static <T extends Comparable<T>> T clamp(T val, T min, T max) {
+    private <T extends Comparable<T>> T clamp(T val, T min, T max) {
         if (val.compareTo(min) < 0) return min;
         else if (val.compareTo(max) > 0) return max;
         else return val;
