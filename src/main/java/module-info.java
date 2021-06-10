@@ -4,6 +4,7 @@ module com.flowaap.HotLine {
     requires javafx.graphics;
     requires javafx.base;
     requires org.jetbrains.annotations;
+    requires DateTimeRCryptor;
 
     exports com.flowapp.HotLine;
     exports com.flowapp.HotLine.Controllers to javafx.fxml;

@@ -123,7 +123,7 @@ public class HotLine {
         final float dtTrans = (float) (2.026f * Math.pow(tinIn * 2.54f, -0.52));
         final float dtTurbulent = (float) (1.08f * Math.pow(tinIn * 2.54f, -0.394));
         println("For Laminar Flow dt = 3.39 * ({} * 2.54) ^ -3.11 = {} C", tinIn, dtLaminar);
-        println("For Transitional Flow dt = 2.026 * ({} * 2.59) ^ -0.52 = {} C", tinIn, dtTrans);
+        println("For Transitional Flow dt = 2.026 * ({} * 2.54) ^ -0.52 = {} C", tinIn, dtTrans);
         println("For Turbulent Flow dt = 1.08 * ({} * 2.54) ^ -0.394 = {} C", tinIn, dtTurbulent);
         final Map<FlowType, Float> deltaTMap = Map.of(FlowType.LAMINAR, dtLaminar, FlowType.TRANSITIONAL, dtTrans, FlowType.TURBULENT, dtTurbulent);
         final List<HotTableRow> simplifiedFordRows = new ArrayList<>();

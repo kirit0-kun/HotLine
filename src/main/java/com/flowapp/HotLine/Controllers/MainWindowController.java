@@ -16,6 +16,7 @@ import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
+import javafx.scene.text.Font;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
@@ -23,6 +24,7 @@ import java.net.URL;
 import java.text.DecimalFormat;
 import java.text.ParsePosition;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.ResourceBundle;
 
@@ -122,6 +124,11 @@ public class MainWindowController implements Initializable {
         for (var field: textFields) {
             field.setTextFormatter(createDecimalFormatter());
         }
+        var packagePath = getClass().getPackageName().split("\\.");
+        packagePath[packagePath.length-1] = "Fonts";
+        String fontPath = Arrays.stream(packagePath).reduce("", (s, s2) -> s + "/" + s2);
+        Font font = Font.loadFont(getClass().getResourceAsStream(fontPath + "/FiraCode-Retina.ttf"), answerArea.getFont().getSize());
+        answerArea.setFont(font);
         calculateBtn.setOnAction(e -> {
             try {
                 calculate();
