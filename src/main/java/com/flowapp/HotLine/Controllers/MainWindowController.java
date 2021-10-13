@@ -6,6 +6,7 @@ import com.flowapp.HotLine.Models.Point;
 import com.flowapp.HotLine.Models.PressureTraverse;
 import javafx.application.Application;
 import javafx.beans.binding.Bindings;
+import javafx.concurrent.Service;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -231,78 +232,59 @@ public class MainWindowController implements Initializable {
         final boolean reverse = isReverseCheckBox.isSelected();
         final boolean simplifiedOnly = isSimplifiedOnlyCheckBox.isSelected();
 
-        final var task = new Task<HotLineResult>() {
-            Alert loadingDialog;
-
+        final var task = new Service<HotLineResult>() {
             @Override
-            protected HotLineResult call() throws Exception {
-                final var hotline = new HotLine();
-                return hotline.hotLine(
-                        iDmm,
-                        oDmm,
-                        spGr,
-                        visAt100F,
-                        visAt212F,
-                        flowRateM3H,
-                        maxTempC,
-                        minTempC,
-                        tsC,
-                        lambdaS,
-                        tinIn,
-                        h,
-                        lambdaC,
-                        alphaT,
-                        tf1,
-                        tf2,firstDtAssumption,dTAllowedError,
-                        maxPumpPressure,
-                        maxTotalPressure,
-                        pumpInitialIntakePressure,
-                        reverse, simplifiedOnly);
-            }
-
-            @Override
-            public void run() {
-                loadingDialog = createProgressAlert((Stage) iDTextField.getScene().getWindow(), this);
-                super.run();
-                loadingDialog.show();
-            }
-
-            protected void closeDialog() {
-                if (loadingDialog != null) {
-                    loadingDialog.close();
-                }
-            }
-
-            @Override
-            protected void succeeded() {
-                super.succeeded();
-                closeDialog();
-            }
-
-            @Override
-            protected void failed() {
-                super.failed();
-                closeDialog();
-            }
-
-            @Override
-            protected void cancelled() {
-                super.cancelled();
-                closeDialog();
+            protected Task<HotLineResult> createTask() {
+                return new Task<HotLineResult>() {
+                    @Override
+                    protected HotLineResult call() {
+                        final var hotline = new HotLine();
+                        return hotline.hotLine(
+                                iDmm,
+                                oDmm,
+                                spGr,
+                                visAt100F,
+                                visAt212F,
+                                flowRateM3H,
+                                maxTempC,
+                                minTempC,
+                                tsC,
+                                lambdaS,
+                                tinIn,
+                                h,
+                                lambdaC,
+                                alphaT,
+                                tf1,
+                                tf2,firstDtAssumption,dTAllowedError,
+                                maxPumpPressure,
+                                maxTotalPressure,
+                                pumpInitialIntakePressure,
+                                reverse, simplifiedOnly);
+                    }
+                };
             }
         };
+        final var loadingDialog = createProgressAlert((Stage) iDTextField.getScene().getWindow(), task);
+        task.setOnRunning(e -> {
+            loadingDialog.show();
+        });
         task.setOnSucceeded(e -> {
             final var result = task.getValue();
             showTraverse(result.getPressureTraverse(), result.getTemperatureTraverse(), reverse);
             setAnswer(result.getSteps());
+            loadingDialog.close();
         });
         task.setOnFailed(e -> {
             final var error = e.getSource().getException();
             final var errorDialog = createErrorDialog(getStage(), error);
+            loadingDialog.close();
             errorDialog.show();
             setAnswer(error.getMessage());
         });
-        task.run();
+        task.setOnCancelled(e -> {
+            loadingDialog.close();
+        });
+        task.restart();
     }
 
     Float getFloat(String value) {
@@ -333,7 +315,7 @@ public class MainWindowController implements Initializable {
         return alert;
     }
 
-    Alert createProgressAlert(Stage owner, Task<?> task) {
+    Alert createProgressAlert(Stage owner, Service<?> task) {
         Alert alert = new Alert(Alert.AlertType.NONE);
         alert.initOwner(owner);
         alert.titleProperty().bind(task.titleProperty());
@@ -342,6 +324,7 @@ public class MainWindowController implements Initializable {
         ProgressIndicator pIndicator = new ProgressIndicator();
         pIndicator.progressProperty().bind(task.progressProperty());
         alert.setGraphic(pIndicator);
+        alert.setHeaderText("Loading...");
 
         alert.getDialogPane().getButtonTypes().add(ButtonType.OK);
         alert.getDialogPane().lookupButton(ButtonType.OK)
