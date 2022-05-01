@@ -16,6 +16,10 @@ application {
     mainModule = 'com.flowapp.HotLine'
 }
 
+java {
+    modularity.inferModulePath = true
+}
+
 repositories {
     mavenCentral()
 }
@@ -42,7 +46,7 @@ jlink {
         name = 'Hot Line'
     }
     jpackage {
-        appVersion = 1
+        appVersion = '1.0.0'
         installerOutputDir = file("$buildDir/installers")
     }
 }

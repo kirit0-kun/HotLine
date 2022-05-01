@@ -1,4 +1,4 @@
-module com.flowaap.HotLine {
+module com.flowapp.HotLine {
     requires javafx.fxml;
     requires javafx.controls;
     requires javafx.graphics;
