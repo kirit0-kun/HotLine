@@ -340,7 +340,7 @@ public class MainWindowController implements Initializable {
 
     private void showTraverse(PressureTraverse pressureTraverse, Point[] temperatureTraverse, boolean reverse) {
         final String workingLineTitle = "Work Line";
-        XYChart.Series<Number, Number> pressureSeries = new XYChart.Series();
+        XYChart.Series<Number, Number> pressureSeries = new XYChart.Series<>();
         pressureSeries.setName("Pressure Plot");
         for (var p: pressureTraverse.getPressureTraverse()) {
             pressureSeries.getData().add(new XYChart.Data(p.getX(), p.getY()));
