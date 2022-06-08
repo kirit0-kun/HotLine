@@ -288,11 +288,11 @@ public class HotLine {
 
     private void renderSimplifiedFordHotTable(List<HotTableRow> hotTableRows) {
         final List<Object[]> table = new ArrayList<>();
-        table.add(new Object[]{"No.", "Tf1", "Tf2", "Tf", "Ti", "ζi", "Nre", "Flow Type", "C", "F", "hf", "k", "L", "ΣL", "∆P", "Σ∆P"});
+        table.add(new Object[]{"No.", "Tf1", "Tf2", "Tf", "Ti", "ζi", "Nre", "Flow Type", "C", "F", "α", "hf", "k", "L", "ΣL", "∆P", "Σ∆P"});
         for (int i = 0; i < hotTableRows.size(); i++) {
             final var section = hotTableRows.get(i);
             table.add(new Object[]{i+1, section.getTf1(), section.getTf2(), section.getTfBar(), section.getTi(), section.getVisAtI(),
-                    section.getNre(), section.getFlowType(), section.getC(), section.getF(), section.getHf(),
+                    section.getNre(), section.getFlowType(), section.getC(), section.getF(), section.getAlpha(), section.getHf(),
                     section.getK(), section.getL(), section.getSumL(), section.getDeltaP(), section.getSumP()});
         }
         renderTable(table);
@@ -499,7 +499,7 @@ public class HotLine {
                 }
             }
             return newRow;
-        }).collect(Collectors.toList());
+        }).toList();
         for (var row: newRows) {
             at.addRow(row);
         }
