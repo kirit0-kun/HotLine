@@ -45,6 +45,9 @@ public class MainWindowController implements Initializable {
     private CheckBox isReverseCheckBox;
 
     @FXML
+    private CheckBox isLTRCheckBox;
+
+    @FXML
     private CheckBox isSimplifiedOnlyCheckBox;
 
     @FXML
@@ -234,6 +237,7 @@ public class MainWindowController implements Initializable {
         final float pumpInitialIntakePressure = getFloat(pumpInitialPressureTextField.getText());
         final boolean reverse = isReverseCheckBox.isSelected();
         final boolean simplifiedOnly = isSimplifiedOnlyCheckBox.isSelected();
+        final boolean isLTR = isLTRCheckBox.isSelected();
 
         final var task = new Service<HotLineResult>() {
             @Override
@@ -262,7 +266,9 @@ public class MainWindowController implements Initializable {
                                 maxPumpPressure,
                                 maxTotalPressure,
                                 pumpInitialIntakePressure,
-                                reverse, simplifiedOnly);
+                                reverse,
+                                isLTR,
+                                simplifiedOnly);
                     }
                 };
             }
@@ -273,7 +279,7 @@ public class MainWindowController implements Initializable {
         });
         task.setOnSucceeded(e -> {
             final var result = task.getValue();
-            showTraverse(result.getPressureTraverse(), result.getTemperatureTraverse(), reverse);
+            showTraverse(result.getPressureTraverse(), result.getTemperatureTraverse(), reverse, isLTR);
             setAnswer(result.getSteps());
             loadingDialog.close();
         });
@@ -341,33 +347,50 @@ public class MainWindowController implements Initializable {
         return alert;
     }
 
-    private void showTraverse(PressureTraverse pressureTraverse, Point[] temperatureTraverse, boolean reverse) {
+    private void showTraverse(PressureTraverse pressureTraverse, Point[] temperatureTraverse, boolean reverse, boolean isLTR) {
         final String workingLineTitle = "Work Line";
         XYChart.Series<Number, Number> pressureSeries = new XYChart.Series<>();
         pressureSeries.setName("Pressure Plot");
+        float upperBound = 0;
+        float lowerBound = 0;
         for (var p: pressureTraverse.getPressureTraverse()) {
-            pressureSeries.getData().add(new XYChart.Data(p.getX(), p.getY()));
+            pressureSeries.getData().add(new XYChart.Data<>(p.getX(), p.getY()));
+            upperBound = Math.max(upperBound, p.getX());
+            lowerBound = Math.min(lowerBound, p.getX());
         }
         List<XYChart.Series<Number, Number>> pressureWorkingLinesSeries = new ArrayList<>();
         for (var p: pressureTraverse.getWorkLines()) {
-            XYChart.Series<Number, Number> workingLine = new XYChart.Series();
-            workingLine.getData().add(new XYChart.Data(p.getFirst().getX(), p.getFirst().getY()));
-            workingLine.getData().add(new XYChart.Data(p.getSecond().getX(), p.getSecond().getY()));
+            XYChart.Series<Number, Number> workingLine = new XYChart.Series<>();
+            workingLine.getData().add(new XYChart.Data<>(p.getFirst().getX(), p.getFirst().getY()));
+            workingLine.getData().add(new XYChart.Data<>(p.getSecond().getX(), p.getSecond().getY()));
             workingLine.setName(workingLineTitle);
             pressureWorkingLinesSeries.add(workingLine);
         }
 
-        XYChart.Series<Number, Number> tempSeries = new XYChart.Series();
+        XYChart.Series<Number, Number> tempSeries = new XYChart.Series<>();
         tempSeries.setName("Temp Plot");
         for (var p: temperatureTraverse) {
-            tempSeries.getData().add(new XYChart.Data(p.getX(), p.getY()));
+            tempSeries.getData().add(new XYChart.Data<>(p.getX(), p.getY()));
         }
+
+        final var unitBare = ((upperBound - lowerBound) / 25);
+        final var base = Math.round(Math.log10(unitBare));
+        final var pow = Math.pow(10, base);
+        final var unit = Math.round(unitBare / pow) * pow;
+
         //Defining the x an y axes
         NumberAxis pressureXAxis = new NumberAxis();
         NumberAxis tempXAxis = new NumberAxis();
-        if (reverse) {
-            final NumberAxis[] axes = {pressureXAxis, tempXAxis};
-            for (var axis: axes) {
+
+
+        final NumberAxis[] axes = {pressureXAxis, tempXAxis};
+        for (var axis: axes) {
+            axis.setFocusTraversable(true);
+            axis.setAutoRanging(false);
+            axis.setLowerBound(lowerBound);
+            axis.setUpperBound(upperBound);
+            axis.setTickUnit(unit);
+            if (!isLTR && reverse) {
                 axis.setTickLabelFormatter(new NumberAxis.DefaultFormatter(axis) {
                     @Override
                     public String toString(Number value) {
@@ -377,6 +400,9 @@ public class MainWindowController implements Initializable {
                 });
             }
         }
+
+
+
         NumberAxis pressureAxis = new NumberAxis();
         NumberAxis tempAxis = new NumberAxis();
         //Setting labels for the axes

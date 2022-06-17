@@ -17,7 +17,7 @@
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.text.Font?>
 
-<AnchorPane xmlns="http://javafx.com/javafx/16" xmlns:fx="http://javafx.com/fxml/1">
+<AnchorPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1">
    <children>
       <GridPane layoutX="15.0" layoutY="13.0" prefHeight="376.0" prefWidth="580.0" AnchorPane.leftAnchor="10.0" AnchorPane.rightAnchor="10.0" AnchorPane.topAnchor="10.0">
         <columnConstraints>
@@ -100,6 +100,7 @@
             <CheckBox fx:id="isSimplifiedOnlyCheckBox" mnemonicParsing="false" prefHeight="18.0" prefWidth="132.0" text="Simplified Only" GridPane.columnSpan="2" GridPane.rowIndex="11" />
             <Label text="∆T Allowed Error" GridPane.columnIndex="3" GridPane.rowIndex="7" />
             <TextField fx:id="dTAllowedErrorTextBox" text="0.5" GridPane.columnIndex="4" GridPane.rowIndex="7" />
+            <CheckBox fx:id="isLTRCheckBox" mnemonicParsing="false" prefHeight="18.0" prefWidth="132.0" selected="true" text="LTR Only" GridPane.rowIndex="12" />
          </children>
       </GridPane>
       <TextArea fx:id="answerArea" editable="false" layoutX="29.0" layoutY="430.0" prefHeight="303.0" prefWidth="595.0" AnchorPane.bottomAnchor="74.0" AnchorPane.leftAnchor="10.0" AnchorPane.rightAnchor="10.0" AnchorPane.topAnchor="430.0">
